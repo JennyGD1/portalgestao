@@ -36,7 +36,7 @@ async function connectToMongoDB() {
     }
 }
 app.use(basicAuth({
-    users: { 'admin': process.env.SITE_PASSWORD }, // O usuário é 'admin'
+    users: { 'maida': process.env.SITE_PASSWORD },
     challenge: true,
     realm: 'MaidaGestao', // Mensagem que aparece no popup
 }));

@@ -35,11 +35,7 @@ async function connectToMongoDB() {
         throw error;
     }
 }
-app.use(basicAuth({
-    users: { 'maida': process.env.SITE_PASSWORD },
-    challenge: true,
-    realm: 'MaidaGestao', // Mensagem que aparece no popup
-}));
+
 // ------------------------------------------------------------------------------------------------
 // Rota API: guias-negadas
 // ------------------------------------------------------------------------------------------------
@@ -119,6 +115,7 @@ app.get('/api/guias-negadas', async (req, res) => {
                     status: guia.statusRegulacao || 'Status N/A',
                     prestadorNome: guia.prestador || 'Prestador N/A', // Usando o campo prestador diretamente
                     totalNegado: totalNegadoGuia,
+                    itensGuia: itensNegados
                 });
             }
         }

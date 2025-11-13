@@ -231,7 +231,12 @@ function criarGraficosSLA(data) {
                             }
                         },
                         datalabels: {
-                            display: false,
+                            color: '#ffffff',
+                            font: { weight: 'bold', size: 11 },
+                            formatter: (value, context) => {
+                                const percent = ((value / totalGeral) * 100).toFixed(0);
+                                return percent + '%';
+                            }
                         }
                     }
                 },

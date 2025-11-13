@@ -1,18 +1,31 @@
 document.addEventListener('DOMContentLoaded', function() {
     
-    const path = window.location.pathname;
-    
-    const currentPage = path.split('/').pop() || 'index.html';
+    // Pega o caminho completo da URL, ex: "/" ou "/html/regulacao.html"
+    const currentPath = window.location.pathname;
 
     const navLinks = document.querySelectorAll('.main-nav a');
 
     navLinks.forEach(link => {
-        const linkPage = link.getAttribute('href');
+        // Pega o href do link, ex: "/" ou "/html/regulacao.html"
+        const linkPath = link.getAttribute('href');
 
-        if (linkPage === currentPage) {
-            link.classList.add('active');
-        } else {
-            link.classList.remove('active');
+        // Lógica especial para a Home ("Início")
+        if (linkPath === '/') {
+            // A Home pode ser "/", "/index.html" ou "/html/index.html"
+            if (currentPath === '/' || currentPath === '/index.html' || currentPath === '/html/index.html') {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
+        }
+        // Lógica para as outras páginas
+        else {
+            // Compara se o caminho da URL é o mesmo do link
+            if (currentPath === linkPath) {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
         }
     });
 });

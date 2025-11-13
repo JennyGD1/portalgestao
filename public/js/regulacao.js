@@ -92,21 +92,28 @@ async function carregarDados() {
         try {
             const slaResponse = await fetch(`${API_BASE_URL}/sla-desempenho?${params}`);
             const slaResult = await slaResponse.json();
-
+        
             if (slaResult.success) {
                 console.log('✅ Dados de SLA e Reguladores carregados:', slaResult.data);
                 
                 document.getElementById('total-guias-sla').textContent = slaResult.data.totalGuiasSLA.toLocaleString('pt-BR');
-                document.getElementById('sla-geral-percentual').textContent = slaResult.data.slaGeral + '%';
+                
+                const slaPercentual = slaResult.data.slaGeral;
+                document.getElementById('sla-geral-percentual').textContent = slaPercentual + '%';
+                
+                // Aplica cor condicional
+                aplicarCorSLA(slaPercentual);
                 
                 criarGraficosSLA(slaResult.data); 
             } else {
                 console.error('Erro nas estatísticas de SLA:', slaResult.error);
                 document.getElementById('total-guias-sla').textContent = '0';
                 document.getElementById('sla-geral-percentual').textContent = '0,0%';
+                aplicarCorSLA(0); // Aplica cor rosa para erro
             }
         } catch (slaError) {
              console.error('Erro ao buscar dados de SLA:', slaError);
+             aplicarCorSLA(0);
         }
 
     } catch (error) {
@@ -115,7 +122,25 @@ async function carregarDados() {
     } finally {
         hideLoading();
     }
+}       
+function aplicarCorSLA(slaPercentual) {
+    const slaCard = document.getElementById('sla-geral-percentual').closest('.metrica-card');
+    if (!slaCard) return;
+    
+    slaCard.classList.remove('bg-azul', 'bg-rosa', 'bg-amarelo');
+    
+    if (slaPercentual >= 98) {
+        slaCard.classList.add('bg-azul'); // Acima de 98% - Azul
+        console.log('🎯 SLA: Excelente (Azul) - ' + slaPercentual + '%');
+    } else if (slaPercentual >= 90) {
+        slaCard.classList.add('bg-amarelo'); // Entre 90-97% - Amarelo
+        console.log('⚠️ SLA: Atenção (Amarelo) - ' + slaPercentual + '%');
+    } else {
+        slaCard.classList.add('bg-rosa'); // Abaixo de 90% - Rosa
+        console.log('🚨 SLA: Crítico (Rosa) - ' + slaPercentual + '%');
+    }
 }
+
 function recriarCanvasSLA(id, wrapperId) {
     // Destrói instâncias anteriores
     if (id === 'grafico-sla-tipo' && slaTipoChart) slaTipoChart.destroy();

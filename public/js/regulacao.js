@@ -197,40 +197,47 @@ function criarGraficosSLA(data) {
     // ----------------------------------------------------
     // GRÁFICO 2: Distribuição de Volume (Doughnut)
     // ----------------------------------------------------
-    const ctxSla2 = recriarCanvasSLA('grafico-sla-volume', 'chart-wrapper-sla-2').getContext('2d');
-    if (dadosTipo.length > 0) {
-        slaVolumeChart = new Chart(ctxSla2, {
-            type: 'doughnut',
-            data: {
-                labels: labelsTipo,
-                datasets: [{
-                    data: dadosTipo.map(item => item.total),
-                    backgroundColor: [COR_AZUL, COR_ROSA, COR_AMARELO, COR_CINZA, '#9933ff', '#33cccc'],
-                    borderColor: '#ffffff', borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => ` ${context.label}: ${context.parsed.toLocaleString()} guias`
-                        }
-                    },
-                    datalabels: {
-                        color: '#ffffff',
-                        font: { weight: 'bold', size: 11 },
-                        formatter: (value, context) => {
-                            const percent = ((value / totalGeral) * 100).toFixed(1);
-                            return percent + '%';
+       const ctxSla2 = recriarCanvasSLA('grafico-sla-volume', 'chart-wrapper-sla-2').getContext('2d');
+        if (dadosTipo.length > 0) {
+            
+            const labelsComPercentual = dadosTipo.map(item => {
+                const percentual = ((item.total / totalGeral) * 100).toFixed(0);
+                return `${item.tipo} (${percentual}%)`; 
+            });
+    
+            slaVolumeChart = new Chart(ctxSla2, {
+                type: 'doughnut',
+                data: {
+                    labels: labelsComPercentual,
+                    datasets: [{
+                        data: dadosTipo.map(item => item.total),
+                        backgroundColor: [COR_AZUL, COR_ROSA, COR_AMARELO, COR_CINZA, '#9933ff', '#33cccc'],
+                        borderColor: '#ffffff', borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            position: 'bottom', 
+                            labels: { 
+                                font: { size: 11 },
+                                padding: 15
+                            } 
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => ` ${context.label}: ${context.parsed.toLocaleString()} guias`
+                            }
+                        },
+                        datalabels: {
+                            display: false,
                         }
                     }
-                }
-            },
-            plugins: [ChartDataLabels]
-        });
-    }
+                },
+                plugins: [ChartDataLabels]
+            });
+        }
 
     // ----------------------------------------------------
     // GRÁFICO 3: Guias Dentro vs Fora do SLA (Barra Empilhada)

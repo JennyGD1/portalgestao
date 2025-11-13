@@ -15,6 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = 'guias_db';
 const GUIAS_COLLECTION = 'guias';
+const basicAuth = require('express-basic-auth');
 
 let db, guiasCollection;
 
@@ -34,7 +35,11 @@ async function connectToMongoDB() {
         throw error;
     }
 }
-
+app.use(basicAuth({
+    users: { 'admin': process.env.SITE_PASSWORD }, // O usuário é 'admin'
+    challenge: true,
+    realm: 'MaidaGestao', // Mensagem que aparece no popup
+}));
 // ------------------------------------------------------------------------------------------------
 // Rota API: guias-negadas
 // ------------------------------------------------------------------------------------------------

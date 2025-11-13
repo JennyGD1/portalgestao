@@ -459,7 +459,7 @@ function criarGraficos(stats) {
     }
 
     // ----------------------------------------------------
-    // GRÁFICO 2: DISTRIBUIÇÃO POR TIPO DE GUIA 
+    // GRÁFICO 2: DISTRIBUIÇÃO POR TIPO DE GUIA (LEGENDA EMBAIXO)
     // ----------------------------------------------------
     const ctx2 = recriarCanvas('grafico-tipos-guia').getContext('2d');
     
@@ -531,7 +531,7 @@ function criarGraficos(stats) {
     }
 
     // ----------------------------------------------------
-    // GRÁFICO 3: TOP 10 PROCEDIMENTOS NEGADOS 
+    // GRÁFICO 3: TOP 10 PROCEDIMENTOS NEGADOS (FULL WIDTH)
     // ----------------------------------------------------
     const ctx3 = recriarCanvas('grafico-top-negados').getContext('2d');
     
@@ -630,7 +630,7 @@ function renderizarTabela(data = guiasData) {
             <td>${guia.prestadorNome}</td>
             <td>${guia.dataRegulacao || 'N/A'}</td>
             <td class="valor-negado">${formatCurrency(guia.totalNegado)}</td>
-            <td><button onclick="mostrarDetalhes('${guia._id}')" class="btn-details btn-refresh" style="margin:0; padding: 5px 10px;">Ver Itens</button></td>
+            <td><button onclick="mostrarDetalhes('${guia.id || guia._id || guia.numeroGuiaOperadora}')" class="btn-details btn-refresh" style="margin:0; padding: 5px 10px;">Ver Itens</button></td>
         `;
         tbody.appendChild(tr);
     });
@@ -698,35 +698,92 @@ function criarPaginacao(data = guiasData) {
 
 // --- Funções do Modal e Filtros ---
 
-function mostrarDetalhes(guiaId) {
-    const guia = guiasData.find(g => g._id === guiaId);
-    if (!guia) return;
+window.mostrarDetalhes = function(guiaId) {
+    console.log("🔘 Botão clicado! ID:", guiaId, "Tipo:", typeof guiaId);
 
-    const modalTitle = document.getElementById('modal-guia-titulo');
-    const modalBody = document.getElementById('modal-itens-body');
+    const idNumerico = !isNaN(guiaId) ? Number(guiaId) : guiaId;
     
-    modalTitle.textContent = `Itens Negados da Guia ${guia.numeroGuiaOperadora}`;
+    const guia = guiasData.find(g => 
+        g._id === idNumerico || 
+        g._id === guiaId ||
+        g.id === idNumerico || 
+        g.id === guiaId ||
+        (g.numeroGuiaOperadora && g.numeroGuiaOperadora.toString() === guiaId.toString())
+    );
+    
+    if (!guia) {
+        console.error("❌ Erro: Guia não encontrada. ID procurado:", guiaId);
+        console.log("🔍 Primeira guia para referência:", guiasData[0] ? {
+            _id: guiasData[0]._id,
+            tipo_id: typeof guiasData[0]._id,
+            numeroGuia: guiasData[0].numeroGuiaOperadora
+        } : 'Nenhuma guia');
+        alert('Guia não encontrada. Verifique o console para mais detalhes.');
+        return;
+    }
+
+    console.log("✅ Guia encontrada:", guia);
+
+    document.getElementById('modal-guia-titulo').textContent = `Itens Negados - Guia: ${guia.numeroGuiaOperadora || 'N/A'}`;
+    
+    const modalBody = document.getElementById('modal-itens-body');
     modalBody.innerHTML = '';
 
-    if (guia.itensGuia && guia.itensGuia.length > 0) {
-        guia.itensGuia.forEach(item => {
+    if (guia.itensGuia && Array.isArray(guia.itensGuia) && guia.itensGuia.length > 0) {
+        console.log(`📦 Encontrados ${guia.itensGuia.length} itens na guia`);
+        
+        guia.itensGuia.forEach((item, index) => {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'item-negado';
+            
+            const codigo = item.codigo || item.codigoProcedimento || 'N/A';
+            const descricao = item.descricao || item.descricaoProcedimento || 'Descrição não disponível';
+            const valorNegado = parseFloat(item.valorTotalNegado || item.valorNegado || 0);
+            const quantSolicitada = item.quantSolicitada || 0;
+            const quantAutorizada = item.quantAutorizada || 0;
+            const quantNegada = item.quantNegada || (quantSolicitada - quantAutorizada);
+            
             itemDiv.innerHTML = `
-                <p><strong>Código:</strong> ${item.codigo}</p>
-                <p><strong>Descrição:</strong> ${item.descricao}</p>
-                <p><strong>Qtd Negada:</strong> ${item.quantNegada}</p>
-                <p><strong>Valor Negado:</strong> ${formatCurrency(item.valorTotalNegado)}</p>
+                <p><strong>Cód: ${codigo}</strong> <span style="color:var(--maida-vermelho); font-weight:bold;">${formatCurrency(valorNegado)}</span></p>
+                <p style="color:#666; font-size:0.9em; margin-bottom:8px;">${descricao}</p>
+                <div style="background:#eee; height:1px; margin:5px 0;"></div>
+                <p><small>Solicitado: ${quantSolicitada}</small> <small>Negado: ${quantNegada}</small></p>
             `;
             modalBody.appendChild(itemDiv);
         });
     } else {
-         modalBody.innerHTML = '<p>Nenhum item negado encontrado para esta guia (Verifique se a API está retornando os itens).</p>';
+        console.log("❌ Nenhum item encontrado na guia:", guia);
+        modalBody.innerHTML = `
+            <div style="padding:20px; text-align:center; color:#666">
+                <p>Nenhum item detalhado encontrado para esta guia.</p>
+                <p style="font-size:0.8em; margin-top:10px;">Estrutura da guia:</p>
+                <pre style="font-size:0.7em; text-align:left; background:#f5f5f5; padding:10px; border-radius:5px; max-height:200px; overflow:auto;">
+${JSON.stringify(guia, null, 2)}
+                </pre>
+            </div>
+        `;
     }
 
-    detailsModal.style.display = 'flex';
+    const modal = document.getElementById('details-modal');
+    modal.style.display = 'flex';
+    
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
 }
-
+window.onclick = function(event) {
+    const modal = document.getElementById('details-modal');
+    if (event.target === modal) {
+        window.fecharModal();
+    }
+}
+function fecharModal() {
+    const modal = document.getElementById('details-modal');
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300); // Espera a animação terminar
+}
 function filtrarGuias() {
     const termoBusca = document.getElementById('search-guia').value.toLowerCase().trim();
     
@@ -804,8 +861,9 @@ closeModalBtn.addEventListener('click', () => {
 });
 
 window.addEventListener('click', (event) => {
-    if (event.target === detailsModal) {
-        detailsModal.style.display = 'none';
+    const modal = document.getElementById('details-modal');
+    if (event.target === modal) {
+        fecharModal();
     }
 });
 

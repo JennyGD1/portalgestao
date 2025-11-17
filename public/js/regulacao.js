@@ -423,8 +423,79 @@ function criarGraficosSLA(data) {
                 plugins: {
                     legend: { position: 'bottom' },
                     datalabels: {
-                        display: (context) => context.dataset.data[context.dataIndex] > 5, // Só mostra se for > 5
-                        color: '#ffffff',
+                        // REGRA DE EXIBIÇÃO
+                        display: (context) => {
+                            const value = context.dataset.data[context.dataIndex];
+                            const datasetIndex = context.datasetIndex;
+                            
+                            // Pega o valor da barra Rosa (índice 1) correspondente a esta linha
+                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
+
+                            if (datasetIndex === 0) {
+                                // AZUL:
+                                // 1. Se tem barra Rosa (valorRosa > 0), o Azul está "preso" embaixo. Só mostra se tiver espaço (> 15).
+                                // 2. Se NÃO tem barra Rosa (valorRosa == 0), o Azul está livre. Mostra qualquer valor > 0.
+                                return valorRosa > 0 ? value > 15 : value > 0;
+                            }
+                            
+                            // ROSA: Mostra sempre que existir
+                            return value > 0;
+                        },
+
+                        // REGRA DE COR
+                        color: (context) => {
+                            const value = context.dataset.data[context.dataIndex];
+                            const datasetIndex = context.datasetIndex;
+                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
+
+                            // Lógica comum: Se a legenda vai pra fora ('end'), texto escuro. Se fica dentro ('center'), texto branco.
+                            // Se for Azul e tiver Rosa em cima, é sempre branco (pois fica dentro).
+                            // Se for Azul sem Rosa e pequeno (<100), vai pra fora (escuro).
+                            
+                            if (datasetIndex === 0 && valorRosa > 0) return '#ffffff'; // Azul preso embaixo
+                            
+                            // Daqui pra baixo vale para: Rosa OU Azul-sozinho
+                            return value < 100 ? '#333333' : '#ffffff';
+                        },
+
+                        // REGRA DE POSIÇÃO (ANCORAGEM)
+                        anchor: (context) => {
+                            const value = context.dataset.data[context.dataIndex];
+                            const datasetIndex = context.datasetIndex;
+                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
+
+                            // Se for Azul e tiver Rosa em cima: FICA NO CENTRO.
+                            if (datasetIndex === 0 && valorRosa > 0) return 'center';
+
+                            // Se for Rosa OU Azul-sozinho: < 100 joga pra ponta
+                            return value < 100 ? 'end' : 'center';
+                        },
+
+                        // REGRA DE ALINHAMENTO
+                        align: (context) => {
+                            const value = context.dataset.data[context.dataIndex];
+                            const datasetIndex = context.datasetIndex;
+                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
+
+                            // Se for Azul e tiver Rosa em cima: FICA NO CENTRO.
+                            if (datasetIndex === 0 && valorRosa > 0) return 'center';
+
+                            // Se for Rosa OU Azul-sozinho: < 100 empurra pra fora
+                            return value < 100 ? 'end' : 'center';
+                        },
+                        
+                        // OFFSET (Afastamento da barra)
+                        offset: (context) => {
+                            const value = context.dataset.data[context.dataIndex];
+                            const datasetIndex = context.datasetIndex;
+                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
+                            
+                            // Aplica offset se o texto estiver do lado de fora
+                            const estaDoLadoDeFora = (datasetIndex === 1 && value < 100) || (datasetIndex === 0 && valorRosa === 0 && value < 100);
+                            
+                            return estaDoLadoDeFora ? 4 : 0;
+                        },
+
                         font: { weight: 'bold', size: 10 },
                         formatter: (value) => value.toLocaleString()
                     }

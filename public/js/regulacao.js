@@ -173,12 +173,12 @@ function criarGraficosSLA(data) {
 
     // --- Dados de Tendência ---
     const dadosTendencia = data.tendenciaSLA || [];
-    // Pega apenas os últimos 30 dias/pontos
+    // Pega apenas os últimos 12 pontos
     const dadosTendenciaFiltrados = dadosTendencia.slice(-12);
-    const labelsTendencia = dadosTendenciaFiltrados.map(item => {
-        // Formata data de YYYY-MM-DD para DD/MM
-        const parts = item.data.split('-');
-        return `${parts[2]}/${parts[1]}`;
+
+    // Muda os labels para "1 semana", "2 semana", etc.
+    const labelsTendencia = dadosTendenciaFiltrados.map((item, index) => {
+        return `${index + 1}ª semana`;
     });
     const dataTendenciaSLA = dadosTendenciaFiltrados.map(item => item.percentualSLA);
 
@@ -193,10 +193,19 @@ function criarGraficosSLA(data) {
     // ----------------------------------------------------
     const ctxSla1 = recriarCanvasSLA('grafico-sla-tipo', 'chart-wrapper-sla-1').getContext('2d');
     if (dadosTipo.length > 0) {
+        const labelsAbreviados = labelsTipo.map(tipo => {
+            const tipoLower = tipo.toLowerCase();
+            if (tipoLower.includes('prorrogacao') || tipoLower.includes('prorrogação')) return 'Prorrogação';
+            if (tipoLower.includes('solicitacao') && tipoLower.includes('internacao')) return 'Internação';
+            if (tipoLower.includes('solicitacao') && tipoLower.includes('opme')) return 'OPME';
+            if (tipoLower.includes('honorario') || tipoLower.includes('honorário')) return 'Honorários';
+            return tipo;
+        });
+        
         slaTipoChart = new Chart(ctxSla1, {
             type: 'bar',
             data: {
-                labels: labelsTipo,
+                labels: labelsAbreviados,
                 datasets: [{
                     label: 'SLA (%)',
                     data: dadosTipo.map(item => parseFloat(item.percentualSLA)),
@@ -284,10 +293,19 @@ function criarGraficosSLA(data) {
     // ----------------------------------------------------
     const ctxSla3 = recriarCanvasSLA('grafico-sla-comparativo', 'chart-wrapper-sla-3').getContext('2d');
     if (dadosTipo.length > 0) {
+        const labelsAbreviados = labelsTipo.map(tipo => {
+            const tipoLower = tipo.toLowerCase();
+            if (tipoLower.includes('prorrogacao') || tipoLower.includes('prorrogação')) return 'Prorrogação';
+            if (tipoLower.includes('solicitacao') && tipoLower.includes('internacao')) return 'Internação';
+            if (tipoLower.includes('solicitacao') && tipoLower.includes('opme')) return 'OPME';
+            if (tipoLower.includes('honorario') || tipoLower.includes('honorário')) return 'Honorários';
+            return tipo;
+        });
+        
         slaComparativoChart = new Chart(ctxSla3, {
             type: 'bar',
             data: {
-                labels: labelsTipo,
+                labels: labelsAbreviados,
                 datasets: [
                     { label: 'Dentro SLA', data: dadosTipo.map(item => item.dentroSLA), backgroundColor: COR_AZUL },
                     { label: 'Fora SLA', data: dadosTipo.map(item => item.foraSLA), backgroundColor: COR_ROSA }
@@ -330,7 +348,15 @@ function criarGraficosSLA(data) {
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: { y: { beginAtZero: false, min: 50, max: 100, title: { display: true, text: 'SLA (%)' } } },
+                scales: { 
+                    y: { 
+                        beginAtZero: false, 
+                        min: 50, 
+                        max: 105, 
+                        title: { display: true, text: 'SLA (%)' } 
+                    } 
+                },
+
                 plugins: {
                     legend: { display: false },
                     datalabels: {

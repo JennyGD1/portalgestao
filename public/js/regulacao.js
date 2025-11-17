@@ -419,15 +419,13 @@ function criarGraficos(stats) {
     if (tiposGuiaChart) tiposGuiaChart.destroy();
     if (topNegadosChart) topNegadosChart.destroy();
 
-    // ----------------------------------------------------
-    // GRÁFICO 1: TOP 10 PRESTADORES MAIS GLOSADOS (PRINCIPAL)
-    // ----------------------------------------------------
+    // GRÁFICO 1: TOP 10 PRESTADORES MAIS GLOSADOS
     const ctx1 = recriarCanvas('grafico-top-prestadores').getContext('2d');
-    
+
     if (stats.topPrestadores && stats.topPrestadores.length > 0) {
         const labelsPrestadores = stats.topPrestadores.map(item => {
             const nome = item.prestador || 'Prestador Não Informado';
-            return nome.length > 25 ? nome.substring(0, 25) + '...' : nome;
+            return nome.length > 30 ? nome.substring(0, 30) + '...' : nome;
         });
         const dadosPrestadores = stats.topPrestadores.map(item => parseFloat(item.totalNegado || 0));
 
@@ -450,20 +448,15 @@ function criarGraficos(stats) {
                 scales: {
                     x: {
                         beginAtZero: true,
-                        title: { 
-                            display: true, 
-                            text: 'Valor Negado (R$)',
-                            font: { size: 14 }
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return 'R$ ' + value.toLocaleString('pt-BR', {maximumFractionDigits: 0});
-                            }
-                        }
+                        display: false,
                     },
                     y: {
                         ticks: {
-                            font: { size: 12 }
+                            font: { size: 12 },
+                            padding: 15
+                        },
+                        grid: {
+                            display: false
                         }
                     }
                 },
@@ -476,7 +469,10 @@ function criarGraficos(stats) {
                     },
                     tooltip: {
                         callbacks: {
-                            label: (context) => `Valor Negado: ${formatCurrency(context.parsed.x)}`
+                            label: (context) => {
+                                const prestadorCompleto = stats.topPrestadores[context.dataIndex].prestador || 'Prestador Não Informado';
+                                return `${prestadorCompleto}: ${formatCurrency(context.parsed.x)}`;
+                            }
                         }
                     },
                     datalabels: {
@@ -484,7 +480,16 @@ function criarGraficos(stats) {
                         align: 'right',
                         color: '#585958',
                         font: { weight: 'bold', size: 12 },
-                        formatter: (value) => formatCurrency(value)
+                        formatter: (value) => formatCurrency(value),
+                        padding: {
+                            right: 25 // AUMENTEI O PADDING
+                        },
+                        clip: false // IMPEDE QUE OS VALORES SEJAM CORTADOS
+                    }
+                },
+                layout: {
+                    padding: {
+                        right: 60 // AUMENTEI MUITO O PADDING À DIREITA
                     }
                 }
             },
@@ -495,17 +500,22 @@ function criarGraficos(stats) {
             '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: #666;">Nenhum dado disponível</div>';
     }
 
-    // ----------------------------------------------------
-    // GRÁFICO 2: DISTRIBUIÇÃO POR TIPO DE GUIA (LEGENDA EMBAIXO)
+    // GRÁFICO 2: DISTRIBUIÇÃO POR TIPO DE GUIA (COM SETAS DISTRIBUÍDAS)
     // ----------------------------------------------------
     const ctx2 = recriarCanvas('grafico-tipos-guia').getContext('2d');
-    
+
     if (stats.topTiposGuia && stats.topTiposGuia.length > 0) {
         const labelsTipos = stats.topTiposGuia.map(item => {
-            const tipo = item.tipoGuia || 'Tipo Não Informado';
-            return tipo.length > 20 ? tipo.substring(0, 20) + '...' : tipo;
+            return item.tipoGuia || 'Tipo Não Informado';
         });
         const dadosTipos = stats.topTiposGuia.map(item => parseFloat(item.totalNegado || 0));
+        const total = dadosTipos.reduce((sum, value) => sum + value, 0);
+
+        // Cores para o gráfico
+        const cores = [
+            '#0070ff', '#ff0073', '#ffcc00', '#34c759', '#5856d6',
+            '#ff9500', '#ff2d55', '#5ac8fa', '#4cd964', '#ff3b30'
+        ];
 
         tiposGuiaChart = new Chart(ctx2, {
             type: 'doughnut',
@@ -513,10 +523,7 @@ function criarGraficos(stats) {
                 labels: labelsTipos,
                 datasets: [{
                     data: dadosTipos,
-                    backgroundColor: [
-                        '#0070ff', '#ff0073', '#ffcc00', '#34c759', '#5856d6',
-                        '#ff9500', '#ff2d55', '#5ac8fa', '#4cd964', '#ff3b30'
-                    ],
+                    backgroundColor: cores,
                     borderWidth: 2,
                     borderColor: '#ffffff'
                 }]
@@ -526,52 +533,164 @@ function criarGraficos(stats) {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        position: 'bottom', // LEGENDA EMBAIXO
-                        labels: { 
-                            font: { size: 11 },
-                            boxWidth: 12,
-                            padding: 15
-                        }
-                    },
-                    title: { 
-                        display: true, 
-                        text: 'Distribuição por Tipo de Guia',
-                        font: { size: 16 }
+                        display: false
                     },
                     tooltip: {
                         callbacks: {
                             label: (context) => {
                                 const label = context.label || '';
                                 const value = context.parsed;
-                                const total = stats.totalGeralNegado;
                                 const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
                                 return `${label}: ${formatCurrency(value)} (${percent}%)`;
                             }
                         }
                     },
                     datalabels: {
-                        color: '#ffffff',
-                        font: { weight: 'bold', size: 11 },
-                        formatter: (value, context) => {
-                            const total = stats.totalGeralNegado;
-                            const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
-                            return percent + '%';
-                        }
+                        display: false
+                    }
+                },
+                // ALTERAÇÃO 1: Aumentamos o padding drasticamente para dar espaço aos textos distantes
+                layout: {
+                    padding: {
+                        top: 100,
+                        right: 120,
+                        bottom: 100,
+                        left: 120
                     }
                 }
             },
             plugins: [ChartDataLabels]
         });
+
+        // Função para desenhar as setas e legendas DISTRIBUÍDAS
+        function desenharSetasLegendasDistribuidas(chart) {
+            const ctx = chart.ctx;
+            const meta = chart.getDatasetMeta(0);
+            const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+
+            ctx.save();
+            ctx.font = '14px Arial';
+            ctx.textBaseline = 'middle';
+
+            const centerX = chart.chartArea.left + (chart.chartArea.width / 2);
+            const centerY = chart.chartArea.top + (chart.chartArea.height / 2);
+            const radius = Math.min(chart.chartArea.width, chart.chartArea.height) / 2;
+
+            // Mapeamento de cores para quadrantes específicos
+            const quadrantesPorCor = {
+                '#ff0073': 'esquerda-inferior',    // Rosa
+                '#ffcc00': 'esquerda-superior',    // Amarelo  
+                '#34c759': 'direita-superior',     // Verde
+                '#0070ff': 'direita-inferior'      // Azul
+            };
+
+            // Posições base por quadrante (aumentei o espaçamento para textos longos)
+            const posicoesQuadrantes = {
+                'esquerda-superior': { 
+                    x: centerX - 250,  // Aumentei de 230 para 250
+                    y: centerY - 160,
+                    textAlign: 'right'
+                },
+                'esquerda-inferior': { 
+                    x: centerX - 250,  // Aumentei de 230 para 250
+                    y: centerY + 160,
+                    textAlign: 'right'
+                },
+                'direita-superior': { 
+                    x: centerX + 250,  // Aumentei de 230 para 250
+                    y: centerY - 160,
+                    textAlign: 'left'
+                },
+                'direita-inferior': { 
+                    x: centerX + 250,  // Aumentei de 230 para 250
+                    y: centerY + 160,
+                    textAlign: 'left'
+                }
+            };
+
+            meta.data.forEach((element, index) => {
+                const model = element;
+                const value = chart.data.datasets[0].data[index];
+                const label = chart.data.labels[index];
+                const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+                const color = chart.data.datasets[0].backgroundColor[index];
+
+                // Ângulo central
+                const angle = model.startAngle + (model.endAngle - model.startAngle) / 2;
+
+                // Ponto de saída na borda do gráfico
+                const pointX = centerX + Math.cos(angle) * (radius + 5);
+                const pointY = centerY + Math.sin(angle) * (radius + 5);
+
+                // Determina o quadrante baseado na cor
+                const quadrante = quadrantesPorCor[color] || 'direita-superior';
+                const posicao = posicoesQuadrantes[quadrante];
+                
+                let textX = posicao.x;
+                let textY = posicao.y;
+
+                // --- DESENHO ---
+                
+                // 1. Linha
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.moveTo(pointX, pointY);
+
+                // Linha com cotovelo para o quadrante designado
+                if (quadrante.includes('esquerda')) {
+                    // Para esquerda: vai horizontal primeiro depois vertical
+                    ctx.lineTo(textX + 25, pointY);  // Aumentei de 20 para 25
+                    ctx.lineTo(textX + 25, textY);
+                } else {
+                    // Para direita: vai horizontal primeiro depois vertical  
+                    ctx.lineTo(textX - 25, pointY);  // Aumentei de 20 para 25
+                    ctx.lineTo(textX - 25, textY);
+                }
+                ctx.stroke();
+
+                // 2. Bolinha na ponta
+                ctx.beginPath();
+                ctx.arc(textX, textY, 4, 0, 2 * Math.PI);
+                ctx.fillStyle = color;
+                ctx.fill();
+
+                // 3. Texto - Reduzi um pouco a fonte para caber textos longos
+                ctx.textAlign = posicao.textAlign;
+                const textPadding = posicao.textAlign === 'left' ? 10 : -10;
+
+                ctx.fillStyle = '#333';
+                
+                // Nome da categoria (Negrito) - Fonte um pouco menor
+                ctx.font = 'bold 14px Arial';  // Reduzi de 11 para 10
+                ctx.fillText(`${label}`, textX + textPadding, textY - 7);
+                
+                // Porcentagem (Normal)
+                ctx.font = '14px Arial';  // Reduzi de 11 para 10
+                ctx.fillText(`${percent}%`, textX + textPadding, textY + 7);
+            });
+
+            ctx.restore();
+        }
+
+        // Adiciona o plugin personalizado para desenhar as setas
+        Chart.register({
+            id: 'setasLegendasDistribuidas',
+            afterDraw: function(chart) {
+                if (chart.config.type === 'doughnut' && chart.canvas.id === 'grafico-tipos-guia') {
+                    desenharSetasLegendasDistribuidas(chart);
+                }
+            }
+        });
+
     } else {
         ctx2.canvas.parentNode.innerHTML = 
             '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: #666;">Nenhum dado disponível</div>';
     }
 
-    // ----------------------------------------------------
     // GRÁFICO 3: TOP 10 PROCEDIMENTOS NEGADOS (FULL WIDTH)
-    // ----------------------------------------------------
     const ctx3 = recriarCanvas('grafico-top-negados').getContext('2d');
-    
+
     if (stats.topNegados && stats.topNegados.length > 0) {
         const labelsTop = stats.topNegados.map(item => {
             const desc = item.descricao || `Código: ${item.codigo}`;
@@ -598,20 +717,15 @@ function criarGraficos(stats) {
                 scales: {
                     x: {
                         beginAtZero: true,
-                        title: { 
-                            display: true, 
-                            text: 'Valor Negado (R$)',
-                            font: { size: 14 }
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return 'R$ ' + value.toLocaleString('pt-BR', {maximumFractionDigits: 0});
-                            }
-                        }
+                        display: false,
                     },
                     y: {
                         ticks: {
-                            font: { size: 12 }
+                            font: { size: 12 },
+                            padding: 15
+                        },
+                        grid: {
+                            display: false
                         }
                     }
                 },
@@ -624,7 +738,10 @@ function criarGraficos(stats) {
                     },
                     tooltip: {
                         callbacks: {
-                            label: (context) => `Valor Negado: ${formatCurrency(context.parsed.x)}`
+                            label: (context) => {
+                                const descricaoCompleta = stats.topNegados[context.dataIndex].descricao || `Código: ${stats.topNegados[context.dataIndex].codigo}`;
+                                return `${descricaoCompleta}: ${formatCurrency(context.parsed.x)}`;
+                            }
                         }
                     },
                     datalabels: {
@@ -632,7 +749,16 @@ function criarGraficos(stats) {
                         align: 'right',
                         color: '#585958',
                         font: { weight: 'bold', size: 12 },
-                        formatter: (value) => formatCurrency(value)
+                        formatter: (value) => formatCurrency(value),
+                        padding: {
+                            right: 10 // AUMENTEI O PADDING
+                        },
+                        clip: false // IMPEDE QUE OS VALORES SEJAM CORTADOS
+                    }
+                },
+                layout: {
+                    padding: {
+                        right: 100 // AUMENTEI MUITO O PADDING À DIREITA
                     }
                 }
             },

@@ -44,39 +44,19 @@
             <button class="btn-export" id="export-btn">⬇️ Exportar CSV (Glosas)</button>
         </div>
         
+        <!-- Cards principais de SLA -->
         <div class="metricas-cards">
             <div class="metrica-card bg-amarelo">
-                <h3>Total de Guias Reguladas</h3>
+                <h3>Total de Guias</h3>
                 <div class="metrica-value" id="total-guias-sla">0</div>
             </div>
             <div class="metrica-card bg-rosa">
                 <h3>SLA (%)</h3>
                 <div class="metrica-value" id="sla-geral-percentual">0,0%</div>
             </div>
-
         </div>
         
-        <div class="metricas-cards">
-            <div class="metrica-card bg-azul">
-                <h3>Total Geral Negado</h3>
-                <div class="metrica-value" id="total-negado-geral">R$ 0,00</div>
-            </div>
-            <div class="metrica-card bg-rosa">
-                <h3>Média Negativa / Guia</h3>
-                <div class="metrica-value" id="valor-medio-negado">R$ 0,00</div>
-            </div>
-            <div class="metrica-card bg-amarelo">
-                <h3>Guias com Negativa</h3>
-                <div class="metrica-value" id="quantidade-guias">0</div>
-            </div>
-            <div class="metrica-card bg-vermelho">
-                <h3>Maior Negativa Única</h3>
-                <div class="metrica-value" id="maior-negativa-unica">R$ 0,00</div>
-            </div>
-        </div>
-        
-
-
+        <!-- Análise de SLA -->
         <div class="card" style="grid-column: 1 / 3; margin-top: 40px;">
             <h3 style="color: var(--maida-rosa); font-size: 1.5em;">Análise de Desempenho (SLA)</h3>
         </div>
@@ -111,6 +91,7 @@
             </div>
         </div>
         
+        <!-- Desempenho por Regulador -->
         <div class="card" style="grid-column: 1 / 3; margin-top: 40px;">
             <h3 style="color: var(--maida-rosa); font-size: 1.5em;">Desempenho por Regulador</h3>
         </div>
@@ -128,20 +109,57 @@
                     <canvas id="grafico-regulador-volume"></canvas>
                 </div>
             </div>
-                    <div class="dashboard-grid">
-            <div class="card">
+        </div>
+        
+        <!-- Análise de Glosas -->
+        <div class="card" style="grid-column: 1 / 3; margin-top: 40px;">
+            <h3 style="color: var(--maida-rosa); font-size: 1.5em;">Análise de Glosas</h3>
+        </div>
+        <br>
+        
+        <!-- Cards de negativas movidos para perto dos gráficos de glosas -->
+        <div class="metricas-cards">
+            <div class="metrica-card bg-azul">
+                <h3>Total Geral Negado</h3>
+                <div class="metrica-value" id="total-negado-geral">R$ 0,00</div>
+            </div>
+            <div class="metrica-card bg-rosa">
+                <h3>Média Negativa / Guia</h3>
+                <div class="metrica-value" id="valor-medio-negado">R$ 0,00</div>
+            </div>
+            <div class="metrica-card bg-amarelo">
+                <h3>Guias com Negativa</h3>
+                <div class="metrica-value" id="quantidade-guias">0</div>
+            </div>
+            <div class="metrica-card bg-vermelho">
+                <h3>Maior Negativa Única</h3>
+                <div class="metrica-value" id="maior-negativa-unica">R$ 0,00</div>
+            </div>
+        </div>
+        
+        <!-- Gráficos de glosas -->
+        <div class="dashboard-grid">
+            <!-- Top 10 Prestadores Mais Glosados ocupa toda a coluna -->
+            <div class="card" style="grid-column: 1 / 3;">
                 <h3>Top 10 Prestadores Mais Glosados</h3>
-                <div id="chart-wrapper-1" class="chart-wrapper chart-wrapper-large">
+                <div id="chart-wrapper-1" class="chart-wrapper chart-wrapper-full">
                     <canvas id="grafico-top-prestadores"></canvas>
                 </div>
             </div>
+        </div>
+        
+        <div class="dashboard-grid">
             <div class="card">
                 <h3>Distribuição por Tipo de Guia (Glosa)</h3>
                 <div id="chart-wrapper-2" class="chart-wrapper chart-wrapper-medium">
                     <canvas id="grafico-tipos-guia"></canvas>
                 </div>
             </div>
+            <!-- Espaço vazio para manter o layout -->
+            <div class="card"></div>
         </div>
+        
+        <!-- Top 10 Procedimentos Negados ocupa toda a coluna -->
         <div class="dashboard-grid">
             <div class="card" style="grid-column: 1 / 3;">
                 <h3>Top 10 Procedimentos Negados (Valor)</h3>
@@ -151,6 +169,7 @@
             </div>
         </div>
 
+        <!-- Tabela de guias com negativa -->
         <div class="results-card">
             <div class="results-header">
                 <h3 id="guias-titulo" class="results-title">Guias com Negativa (0 Encontradas)</h3>
@@ -179,7 +198,6 @@
             <div class="pagination-controls" id="pagination-controls">
             </div>
         </div>
-        </div>
 
         <div id="details-modal" class="modal">
             <div class="modal-content">
@@ -190,7 +208,8 @@
             </div>
         </div>
 
-    </div> <script src="../js/regulacao.js"></script>
+    </div> 
+    <script src="../js/regulacao.js"></script>
     <script src="../js/nav.js"></script>
 </body>
 </html>

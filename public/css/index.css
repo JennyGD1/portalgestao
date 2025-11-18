@@ -298,11 +298,41 @@ section {
 }
 
 /* Footer */
+.footer-logos {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    margin-bottom: 30px;
+    padding: 20px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.footer-maida {
+    max-width: 150px;
+    height: auto;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+    filter: brightness(0) invert(1);
+}
+.footer-mv {
+    max-width: 80px;
+    height: auto;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+    filter: brightness(0) invert(1);
+}
+
+.footer-logo:hover {
+    opacity: 1;
+}
+
+/* Footer existente - mantenha estas regras */
 footer {
     background: var(--maida-azul);
     color: var(--branco);
     margin-top: auto;
-    padding: 40px 0 20px;
+    padding: 10px 0 20px;
 }
 
 .footer-content {
@@ -375,6 +405,7 @@ footer {
     border-bottom: 2px solid #eee;
     padding-bottom: 10px;
 }
+
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }

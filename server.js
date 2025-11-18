@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = 'guias_db';
 const GUIAS_COLLECTION = 'guias';
-const basicAuth = require('express-basic-auth');
+const basicAuth = require('express-basic-auth')
 
 let db, guiasCollection;
 
@@ -46,7 +46,10 @@ app.get('/api/guias-negadas', async (req, res) => {
         const { search, minValue, startDate, endDate } = req.query;
         
         // FILTRO BASE: Apenas buscar guias com itens. O filtro de negativa é feito em memória.
-        const query = { "itensGuia": { $exists: true, $ne: [] } };
+        const query = { 
+            "itensGuia": { $exists: true, $ne: [] },
+            "statusRegulacao": { $ne: 'CANCELADA' }
+        };
         
         // FILTRO DE DATA NO MONGODB
         if (startDate && endDate) {
@@ -157,7 +160,11 @@ app.get('/api/estatisticas', async (req, res) => {
             };
         }
         
-        const baseMatch = { ...dateQuery, "itensGuia": { $exists: true, $ne: [] } };
+        const baseMatch = { 
+            ...dateQuery, 
+            "itensGuia": { $exists: true, $ne: [] },
+            "statusRegulacao": { $ne: 'CANCELADA' } 
+        };
         
         const guiasEncontradas = await guiasCollection.find(baseMatch).toArray();
         
@@ -305,7 +312,10 @@ app.get('/api/sla-desempenho', async (req, res) => {
             };
         }
         
-        const baseMatch = { ...dateQuery, "statusRegulacao": { $exists: true } };
+        const baseMatch = { 
+            ...dateQuery, 
+            "statusRegulacao": { $exists: true, $ne: 'CANCELADA' } 
+        };
         
         const guiasEncontradas = await guiasCollection.find(baseMatch).project({
             tipoDeGuia: 1,
@@ -339,7 +349,6 @@ app.get('/api/sla-desempenho', async (req, res) => {
             if (dentroSLA) tipoStats.dentroSLA++;
             statsPorTipo.set(tipoGuia, tipoStats);
 
-            // 🌟 AGREGAÇÃO SEMANAL AQUI 🌟
             if (guia.dataRegulacao) {
                 const data = guia.dataRegulacao.substring(0, 10); 
                 const semana = getInicioSemana(data); // Usa a função helper

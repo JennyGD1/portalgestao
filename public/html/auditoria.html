@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Auditoria Médica</title>
+    <link rel="stylesheet" href="../css/auditoria.css"> 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+</head>
+<body>
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loader"></div>
+    </div>
+    
+    <header>
+        <div class="container">
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="/">Início</a></li>
+                    <li><a href="/html/auditoria.html" class="active">Auditoria</a></li>
+                    <li><a href="/html/regulacao.html">Regulação</a></li> 
+                    <li><a href="/html/faturamento.html">Faturamento</a></li>
+                    <li><a href="/html/credenciamento.html">Credenciamento</a></li>
+                </ul>
+            </nav>
+            <h1>Dashboard de Auditoria de Contas</h1>
+        </div>
+    </header>
+
+    <div class="container">
+        
+        <div class="filters">
+            <div class="filter-group">
+                <label>Data Auditoria (Início):</label>
+                <input type="date" id="start-date" class="filter-input">
+            </div>
+            <div class="filter-group">
+                <label>Data Auditoria (Fim):</label>
+                <input type="date" id="end-date" class="filter-input">
+            </div>
+            <button class="btn-refresh" id="btn-update">🔄 Atualizar</button>
+        </div>
+
+        <div class="metricas-cards linha-1">
+            <div class="metrica-card bg-azul">
+                <h3>Valor Total Apresentado</h3>
+                <div class="metrica-value" id="kpi-apresentado">R$ 0,00</div>
+            </div>
+            <div class="metrica-card bg-rosa">
+                <h3>Valor Total Glosado</h3>
+                <div class="metrica-value" id="kpi-glosado">R$ 0,00</div>
+            </div>
+            <div class="metrica-card bg-amarelo">
+                <h3>Contas Auditadas</h3>
+                <div class="metrica-value" id="kpi-contas">0</div>
+            </div>
+        </div>
+
+        <div class="metricas-cards linha-2">
+            <div class="metrica-card bg-verde">
+                <h3>Glosa Média por Guia</h3>
+                <div class="metrica-value" id="kpi-glosa-media">R$ 0,00</div>
+            </div>
+            <div class="metrica-card bg-roxo">
+                <h3>Custo Médio por Guia</h3>
+                <div class="metrica-value" id="kpi-custo-medio">R$ 0,00</div>
+            </div>
+            <div class="metrica-card bg-laranja">
+                <h3>Tempo Médio de Internação</h3>
+                <div class="metrica-value" id="kpi-tempo-medio">0 dias</div>
+            </div>
+        </div>
+
+        <div class="graficos-full-width">
+            <div class="graficos-duplos">
+                <div class="card">
+                    <h3>Top Prestadores por Valor Glosado</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-prestadores"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Principais Itens Glosados (Por Categoria)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-itens"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card full-width">
+                <h3>Principais Motivos de Glosa</h3>
+                <div class="chart-wrapper chart-donut">
+                    <canvas id="chart-motivos"></canvas>
+                </div>
+            </div>
+
+            <div class="card full-width">
+                <h3>Desempenho dos Médicos Auditores</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart-auditores"></canvas>
+                </div>
+            </div>
+        </div>
+        <br>
+        <div class="dashboard-grid">
+            <div class="column">
+                <div class="card">
+                    <h3>Eficiência da Glosa por Categoria</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-eficiencia"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="column">
+                <div class="card">
+                    <h3>Evolução Temporal (Apresentado vs Glosado)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-evolucao"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card full-width">
+            <h3>Detalhamento por Categoria (Apresentado vs Glosado)</h3>
+            <div id="categories-container" class="category-list">
+            </div>
+        </div>
+
+    </div>
+
+    <script src="../js/auditoria.js"></script>
+</body>
+</html>

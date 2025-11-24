@@ -352,7 +352,7 @@ function renderizarGraficos(chartsData) {
 
     // 2. PRINCIPAIS MOTIVOS DE GLOSA
     if (chartMotivos) chartMotivos.destroy();
-    
+
     const motivosLabels = chartsData.motivos.map(m => m.motivo);
     const motivosData = chartsData.motivos.map(m => m.valor);
 
@@ -361,48 +361,50 @@ function renderizarGraficos(chartsData) {
         data: {
             labels: motivosLabels,
             datasets: [{
-                label: 'Valor Glosado por Motivo',
+                label: 'Valor Glosado',
                 data: motivosData,
-                backgroundColor: CORES_VIBRANTES[1], // Rosa Maida
+                backgroundColor: CORES_VIBRANTES[0],
                 borderRadius: 6,
                 borderWidth: 0
             }]
         },
         options: {
             ...configComum,
-            indexAxis: 'x', // Barras verticais
+            indexAxis: 'y',
             layout: {
                 padding: {
-                    top: 20,
-                    bottom: 5,
                     left: 5,
-                    right: 5
+                    right: 120, 
+                    top: 20,
+                    bottom: 20
                 }
             },
             scales: {
                 x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        maxRotation: 45,
-                        minRotation: 45,
-                        autoSkip: false,
-                        callback: function(value, index, values) {
-                            const label = this.getLabelForValue(value);
-                            // Truncar labels muito longos
-                            if (label.length > 20) {
-                                return label.substring(0, 20) + '...';
-                            }
-                            return label;
-                        }
-                    }
+                    display: false,
+                    title: { display: false },
+                    grid: { display: false }
                 },
                 y: {
-                    display: false, // Esconde o eixo Y (números/título)
-                    title: { display: false },
+                    display: true,
                     grid: { display: false },
-                    beginAtZero: true
+                    ticks: {
+                        autoSkip: false,
+                        maxRotation: 0,
+                        minRotation: 0,
+                        callback: function(value) {
+                            const label = this.getLabelForValue(value);
+                            if (label.length > 40) {
+                                return label.substring(0, 40) + '...';
+                            }
+                            return label;
+                        },
+                        font: {
+                            size: 11,
+                            family: 'Inter, sans-serif'
+                        },
+                        padding: 8
+                    }
                 }
             },
             plugins: {
@@ -410,7 +412,7 @@ function renderizarGraficos(chartsData) {
                 datalabels: {
                     display: true,
                     anchor: 'end',
-                    align: 'top',
+                    align: 'right',
                     formatter: formatCurrency,
                     color: '#585958',
                     font: { 
@@ -423,7 +425,7 @@ function renderizarGraficos(chartsData) {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return `${context.label}: ${formatCurrency(context.parsed.y)}`;
+                            return `${context.label}: ${formatCurrency(context.parsed.x)}`;
                         }
                     }
                 }
@@ -519,7 +521,6 @@ function renderizarGraficos(chartsData) {
                         display: true,
                         text: 'Valor Glosado (R$)'
                     },
-                    // Aumentar o padding no topo para os data labels
                     afterFit: function(scale) {
                         scale.height = scale.height + 60;
                     }
@@ -602,8 +603,7 @@ function renderizarGraficos(chartsData) {
 
     // 5.  GRÁFICO: EFICIÊNCIA DA GLOSA POR CATEGORIA
     renderizarEficienciaGlosa(chartsData.categorias);
-    
-    // 6.  GRÁFICO: DISPERSÃO CUSTO vs TEMPO
+
     
     // 7. GRÁFICO: EVOLUÇÃO TEMPORAL
     renderizarEvolucaoTemporal(chartsData.evolucao || []);
@@ -617,7 +617,7 @@ function renderizarEficienciaGlosa(categorias) {
 
     if (chartEficiencia) chartEficiencia.destroy();
 
-    // 1. Filtrar e Calcular o Total de Glosa Geral (para o novo cálculo de percentual)
+    // 1. Filtrar e Calcular o Total de Glosa Geral 
     const categoriasComGlosa = categorias.filter(cat => (cat.glosado || 0) > 0);
     const totalGlosaGeral = categoriasComGlosa.reduce((sum, cat) => sum + cat.glosado, 0);
 
@@ -640,7 +640,7 @@ function renderizarEficienciaGlosa(categorias) {
                      .replace('MATERIAIS_ESPECIAIS', 'Mat. Especiais')
                      .replace('PACOTES', 'Pacotes'),
             percentualGlosa: ((cat.glosado / totalGlosaGeral) * 100).toFixed(1),
-            valorGlosado: cat.glosado // Mantém para o Tooltip
+            valorGlosado: cat.glosado
         }))
         .sort((a, b) => parseFloat(b.percentualGlosa) - parseFloat(a.percentualGlosa))
         .slice(0, 6);
@@ -652,18 +652,18 @@ function renderizarEficienciaGlosa(categorias) {
             datasets: [{
                 label: 'Contribuição para Glosa Total (%)',
                 data: dadosEficiencia.map(d => parseFloat(d.percentualGlosa)),
-                backgroundColor: CORES_VIBRANTES[2], // Amarelo Maida - mesma cor do gráfico de motivos
+                backgroundColor: CORES_VIBRANTES[2],
                 borderRadius: 6,
                 borderWidth: 0
             }]
         },
         options: {
             ...configComum,
-            indexAxis: 'x', // Barras verticais para consistência
+            indexAxis: 'x',
             layout: {
                 padding: {
                     top: 20,
-                    bottom: 5,
+                    bottom: 50, 
                     left: 5,
                     right: 5
                 }
@@ -674,23 +674,32 @@ function renderizarEficienciaGlosa(categorias) {
                         display: false
                     },
                     ticks: {
-                        maxRotation: 45,
-                        minRotation: 45,
+                        maxRotation: 0, // LEGENDAS RETAS (mudei de 45 para 0)
+                        minRotation: 0,  // LEGENDAS RETAS (mudei de 45 para 0)
                         autoSkip: false,
                         callback: function(value, index, values) {
                             const label = this.getLabelForValue(value);
-                            // Truncar labels muito longos
+                            // Quebrar labels muito longos em duas linhas
                             if (label.length > 20) {
+                                const palavras = label.split(' ');
+                                if (palavras.length > 2) {
+                                    const meio = Math.ceil(palavras.length / 2);
+                                    return palavras.slice(0, meio).join(' ') + '\n' + 
+                                           palavras.slice(meio).join(' ');
+                                }
                                 return label.substring(0, 20) + '...';
                             }
                             return label;
+                        },
+                        font: {
+                            size: 11 // Tamanho menor para caber melhor
                         }
                     }
                 },
                 y: {
-                    display: false,
-                    title: { display: false },
-                    grid: { display: false },
+                    display: false, // Esconde o eixo Y (números/título)
+                    title: { display: false }, // Esconde o título do eixo Y
+                    grid: { display: false }, // Esconde as linhas horizontais
                     beginAtZero: true,
                     max: 100 // Max de 100 para percentual
                 }
@@ -722,7 +731,6 @@ function renderizarEficienciaGlosa(categorias) {
         }
     });
 }
-
 
 // 7. GRÁFICO DE EVOLUÇÃO TEMPORAL
 function renderizarEvolucaoTemporal(dadosEvolucao) {
@@ -840,7 +848,6 @@ function renderizarDetalhamentoCategorias(categorias) {
         `;
     });
 
-    // Adicionar linha de totais gerais
     const percentAprovadoGeral = totalApresentadoGeral > 0 ? 
         ((totalApuradoGeral / totalApresentadoGeral) * 100).toFixed(1) : '0.0';
     const percentGlosadoGeral = totalApresentadoGeral > 0 ? 

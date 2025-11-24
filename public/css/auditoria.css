@@ -309,14 +309,14 @@ body {
     height: var(--altura-grafico-scatter);
 }
 
-/* ===== DETALHAMENTO POR CATEGORIA ===== */
+/* ===== DETALHAMENTO POR CATEGORIA (APARÊNCIA ORIGINAL) ===== */
 .category-list {
     margin-top: var(--espacamento-lg);
 }
 
-.category-header,
-.category-body,
-.category-footer {
+.categories-header,
+.categories-body,
+.categories-footer {
     width: 100%;
 }
 
@@ -334,13 +334,12 @@ body {
     background-color: #f8f9fa;
 }
 
-.category-row--header {
-    background-color: #f1f3f4;
+.category-row.header {
+    background-color:  var(--maida-azul);
     font-weight: bold;
-    border-bottom: 2px solid var(--maida-azul);
 }
 
-.category-row--total {
+.category-row.total {
     background-color: #e3f2fd;
     font-weight: bold;
     border-top: 2px solid var(--maida-azul);
@@ -368,29 +367,29 @@ body {
     font-family: var(--fonte-principal);
 }
 
-.category-value--approved {
+.category-value.aprovado {
     color: #34c759;
     font-weight: var(--peso-bold);
 }
 
-.category-value--rejected {
+.category-value.glosado {
     color: #ff2d55;
     font-weight: var(--peso-bold);
 }
 
-.category-value--percentage {
+.category-value.percent {
     font-weight: var(--peso-bold);
     padding: 4px 8px;
     border-radius: var(--raio-borda-sm);
     text-align: center;
 }
 
-.category-value--percentage.approved {
+.category-value.percent.aprovado {
     background-color: #d4edda;
     color: #155724;
 }
 
-.category-value--percentage.rejected {
+.category-value.percent.glosado {
     background-color: #f8d7da;
     color: #721c24;
 }

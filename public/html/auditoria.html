@@ -13,18 +13,18 @@
         <div class="loader"></div>
     </div>
     
-    <header>
+    <header class="header">
         <div class="container">
-            <nav class="main-nav">
-                <ul>
-                    <li><a href="/">Início</a></li>
-                    <li><a href="/html/auditoria.html" class="active">Auditoria</a></li>
-                    <li><a href="/html/regulacao.html">Regulação</a></li> 
-                    <li><a href="/html/faturamento.html">Faturamento</a></li>
-                    <li><a href="/html/credenciamento.html">Credenciamento</a></li>
+            <nav class="nav">
+                <ul class="nav__list">
+                    <li class="nav__item"><a href="/" class="nav__link">Início</a></li>
+                    <li class="nav__item"><a href="/html/auditoria.html" class="nav__link nav__link--active">Auditoria</a></li>
+                    <li class="nav__item"><a href="/html/regulacao.html" class="nav__link">Regulação</a></li> 
+                    <li class="nav__item"><a href="/html/faturamento.html" class="nav__link">Faturamento</a></li>
+                    <li class="nav__item"><a href="/html/credenciamento.html" class="nav__link">Credenciamento</a></li>
                 </ul>
             </nav>
-            <h1>Dashboard de Auditoria de Contas</h1>
+            <h1 class="header__title">Dashboard de Auditoria de Contas</h1>
         </div>
     </header>
 
@@ -32,114 +32,105 @@
         
         <div class="filters">
             <div class="filter-group">
-                <label>Data Auditoria (Início):</label>
+                <label class="filter-group__label">Data Auditoria (Início):</label>
                 <input type="date" id="start-date" class="filter-input">
             </div>
             <div class="filter-group">
-                <label>Data Auditoria (Fim):</label>
+                <label class="filter-group__label">Data Auditoria (Fim):</label>
                 <input type="date" id="end-date" class="filter-input">
             </div>
-            <button class="btn-refresh" id="btn-update">🔄 Atualizar</button>
+            <button class="btn btn--primary" id="btn-update">🔄 Atualizar</button>
         </div>
 
-        <!-- PRIMEIRA LINHA - 3 CARDS -->
-        <div class="metricas-cards linha-1">
-            <div class="metrica-card bg-azul">
-                <h3>Valor Total Apresentado</h3>
-                <div class="metrica-value" id="kpi-apresentado">R$ 0,00</div>
+        <div class="metrics-grid">
+            <div class="metric-card metric-card--blue">
+                <h3 class="metric-card__title">Valor Total Apresentado</h3>
+                <div class="metric-card__value" id="kpi-apresentado">R$ 0,00</div>
             </div>
-            <div class="metrica-card bg-rosa">
-                <h3>Valor Total Glosado</h3>
-                <div class="metrica-value" id="kpi-glosado">R$ 0,00</div>
+            <div class="metric-card metric-card--pink">
+                <h3 class="metric-card__title">Valor Total Glosado</h3>
+                <div class="metric-card__value" id="kpi-glosado">R$ 0,00</div>
             </div>
-            <div class="metrica-card bg-amarelo">
-                <h3>Contas Auditadas</h3>
-                <div class="metrica-value" id="kpi-contas">0</div>
-            </div>
-        </div>
-
-        <!-- SEGUNDA LINHA - 3 CARDS -->
-        <div class="metricas-cards linha-2">
-            <div class="metrica-card bg-verde">
-                <h3>Glosa Média por Guia</h3>
-                <div class="metrica-value" id="kpi-glosa-media">R$ 0,00</div>
-            </div>
-            <div class="metrica-card bg-roxo">
-                <h3>Custo Médio por Guia</h3>
-                <div class="metrica-value" id="kpi-custo-medio">R$ 0,00</div>
-            </div>
-            <div class="metrica-card bg-laranja">
-                <h3>Tempo Médio de Internação</h3>
-                <div class="metrica-value" id="kpi-tempo-medio">0 dias</div>
+            <div class="metric-card metric-card--yellow">
+                <h3 class="metric-card__title">Contas Auditadas</h3>
+                <div class="metric-card__value" id="kpi-contas">0</div>
             </div>
         </div>
 
-        <!-- GRÁFICOS PRINCIPAIS - UM POR LINHA -->
-        <div class="graficos-full-width">
-            <div class="graficos-duplos">
-                <!-- TOP PRESTADORES -->
+        <div class="metrics-grid">
+            <div class="metric-card metric-card--green">
+                <h3 class="metric-card__title">Glosa Média por Guia</h3>
+                <div class="metric-card__value" id="kpi-glosa-media">R$ 0,00</div>
+            </div>
+            <div class="metric-card metric-card--purple">
+                <h3 class="metric-card__title">Custo Médio por Guia</h3>
+                <div class="metric-card__value" id="kpi-custo-medio">R$ 0,00</div>
+            </div>
+            <div class="metric-card metric-card--orange">
+                <h3 class="metric-card__title">Tempo Médio de Internação</h3>
+                <div class="metric-card__value" id="kpi-tempo-medio">0 dias</div>
+            </div>
+        </div>
+
+        <div class="charts-full">
+            <div class="charts-double">
                 <div class="card">
-                    <h3>Top Prestadores por Valor Glosado</h3>
-                    <div class="chart-wrapper">
+                    <h3 class="card__title">Top Prestadores por Valor Glosado</h3>
+                    <div class="chart-container">
                         <canvas id="chart-prestadores"></canvas>
                     </div>
                 </div>
 
-                <!-- PRINCIPAIS ITENS GLOSADOS -->
                 <div class="card">
-                    <h3>Principais Itens Glosados (Por Categoria)</h3>
-                    <div class="chart-wrapper">
+                    <h3 class="card__title">Principais Itens Glosados (Por Categoria)</h3>
+                    <div class="chart-container">
                         <canvas id="chart-itens"></canvas>
                     </div>
                 </div>
             </div>
 
-            <div class="graficos-duplos">
+            <div class="charts-double">
                 <!-- PRINCIPAIS MOTIVOS DE GLOSA -->
                 <div class="card">
-                    <h3>Principais Motivos de Glosa</h3>
-                    <div class="chart-wrapper">
+                    <h3 class="card__title">Principais Motivos de Glosa</h3>
+                    <div class="chart-container">
                         <canvas id="chart-motivos"></canvas>
                     </div>
                 </div>
 
                 <!-- EFICIÊNCIA DA GLOSA POR CATEGORIA -->
                 <div class="card">
-                    <h3>Eficiência da Glosa por Categoria</h3>
-                    <div class="chart-wrapper">
+                    <h3 class="card__title">Eficiência da Glosa por Categoria</h3>
+                    <div class="chart-container">
                         <canvas id="chart-eficiencia"></canvas>
                     </div>
                 </div>
             </div>
         </div>
-        <br>
-        <!-- GRÁFICOS SECUNDÁRIOS - LADO A LADO -->
         <div class="dashboard-grid">
 
-            <div class="column">
+            <div class="dashboard-column">
                 <div class="card">
-                    <h3>Evolução Temporal (Apresentado vs Glosado)</h3>
-                    <div class="chart-wrapper">
+                    <h3 class="card__title">Evolução Temporal (Apresentado vs Glosado)</h3>
+                    <div class="chart-container">
                         <canvas id="chart-evolucao"></canvas>
                     </div>
                 </div>
             </div>
 
-            <div class="column">
+            <div class="dashboard-column">
                 <div class="card">
-                    <h3>Desempenho dos Médicos Auditores</h3>
-                    <div class="chart-wrapper">
+                    <h3 class="card__title">Desempenho dos Médicos Auditores</h3>
+                    <div class="chart-container">
                         <canvas id="chart-auditores"></canvas>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- DETALHAMENTO POR CATEGORIA -->
         <div class="card full-width">
-            <h3>Detalhamento por Categoria (Apresentado vs Glosado)</h3>
+            <h3 class="card__title">Detalhamento por Categoria (Apresentado vs Glosado)</h3>
             <div id="categories-container" class="category-list">
-                <!-- Gerado dinamicamente pelo JavaScript -->
             </div>
         </div>
 

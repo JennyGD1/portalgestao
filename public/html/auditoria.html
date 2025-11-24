@@ -42,6 +42,7 @@
             <button class="btn-refresh" id="btn-update">🔄 Atualizar</button>
         </div>
 
+        <!-- PRIMEIRA LINHA - 3 CARDS -->
         <div class="metricas-cards linha-1">
             <div class="metrica-card bg-azul">
                 <h3>Valor Total Apresentado</h3>
@@ -57,6 +58,7 @@
             </div>
         </div>
 
+        <!-- SEGUNDA LINHA - 3 CARDS -->
         <div class="metricas-cards linha-2">
             <div class="metrica-card bg-verde">
                 <h3>Glosa Média por Guia</h3>
@@ -72,8 +74,10 @@
             </div>
         </div>
 
+        <!-- GRÁFICOS PRINCIPAIS - UM POR LINHA -->
         <div class="graficos-full-width">
             <div class="graficos-duplos">
+                <!-- TOP PRESTADORES -->
                 <div class="card">
                     <h3>Top Prestadores por Valor Glosado</h3>
                     <div class="chart-wrapper">
@@ -81,6 +85,7 @@
                     </div>
                 </div>
 
+                <!-- PRINCIPAIS ITENS GLOSADOS -->
                 <div class="card">
                     <h3>Principais Itens Glosados (Por Categoria)</h3>
                     <div class="chart-wrapper">
@@ -89,23 +94,16 @@
                 </div>
             </div>
 
-            <div class="card full-width">
-                <h3>Principais Motivos de Glosa</h3>
-                <div class="chart-wrapper chart-donut">
-                    <canvas id="chart-motivos"></canvas>
+            <div class="graficos-duplos">
+                <!-- PRINCIPAIS MOTIVOS DE GLOSA -->
+                <div class="card">
+                    <h3>Principais Motivos de Glosa</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-motivos"></canvas>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card full-width">
-                <h3>Desempenho dos Médicos Auditores</h3>
-                <div class="chart-wrapper">
-                    <canvas id="chart-auditores"></canvas>
-                </div>
-            </div>
-        </div>
-        <br>
-        <div class="dashboard-grid">
-            <div class="column">
+                <!-- EFICIÊNCIA DA GLOSA POR CATEGORIA -->
                 <div class="card">
                     <h3>Eficiência da Glosa por Categoria</h3>
                     <div class="chart-wrapper">
@@ -113,7 +111,12 @@
                     </div>
                 </div>
             </div>
+        </div>
+        <br>
+        <!-- GRÁFICOS SECUNDÁRIOS - LADO A LADO -->
+        <div class="dashboard-grid">
 
+            <!-- COLUNA DIREITA -->
             <div class="column">
                 <div class="card">
                     <h3>Evolução Temporal (Apresentado vs Glosado)</h3>
@@ -124,9 +127,11 @@
             </div>
         </div>
 
+        <!-- DETALHAMENTO POR CATEGORIA -->
         <div class="card full-width">
             <h3>Detalhamento por Categoria (Apresentado vs Glosado)</h3>
             <div id="categories-container" class="category-list">
+                <!-- Gerado dinamicamente pelo JavaScript -->
             </div>
         </div>
 

@@ -48,6 +48,7 @@ let chartAuditores = null;
 let chartEficiencia = null;
 let chartEvolucao = null;
 
+// --- PLUGIN CUSTOMIZADO: SETAS E LEGENDAS (Com Anti-Colisão) ---
 const pluginSetasLegendas = {
     id: 'setasLegendasDistribuidas',
     afterDraw: function(chart) {
@@ -67,9 +68,11 @@ const pluginSetasLegendas = {
 
         const itemsToDraw = [];
 
+        // 1. Calcular posições iniciais de todos os itens
         meta.data.forEach((element, index) => {
             const value = chart.data.datasets[0].data[index];
             
+            // Ignora fatias muito pequenas (< 1%) para limpar o visual
             if (value / total < 0.01) return;
 
             const model = element;
@@ -77,13 +80,16 @@ const pluginSetasLegendas = {
             const cosAngle = Math.cos(angle);
             const sinAngle = Math.sin(angle);
 
+            // Ponto de saída na borda do donut
             const startX = centerX + cosAngle * radius;
             const startY = centerY + sinAngle * radius;
 
+            // Ponto do Cotovelo (mais afastado para dar espaço)
             const elbowRadius = radius + 30; 
             const elbowX = centerX + cosAngle * elbowRadius;
             const elbowY = centerY + sinAngle * elbowRadius;
 
+            // Define lado (Direita ou Esquerda)
             const isRight = cosAngle >= 0;
             const textAlign = isRight ? 'left' : 'right';
 
@@ -102,7 +108,8 @@ const pluginSetasLegendas = {
             });
         });
 
-      
+        // 2. Ajuste de Colisão Vertical (Evita sobreposição)
+        // Separa itens da esquerda e direita e ordena por Y (de cima para baixo)
         const leftItems = itemsToDraw.filter(i => !i.isRight).sort((a, b) => a.finalY - b.finalY);
         const rightItems = itemsToDraw.filter(i => i.isRight).sort((a, b) => a.finalY - b.finalY);
 
@@ -112,7 +119,7 @@ const pluginSetasLegendas = {
                 const prev = items[i - 1];
                 const curr = items[i];
                 
-            
+                // Se estiver muito perto do anterior, empurra para baixo
                 if (curr.finalY - prev.finalY < minSpacing) {
                     curr.finalY = prev.finalY + minSpacing;
                 }
@@ -122,15 +129,17 @@ const pluginSetasLegendas = {
         adjustPositions(leftItems);
         adjustPositions(rightItems);
 
-     
+        // 3. Desenhar linhas e textos com as posições ajustadas
         itemsToDraw.forEach(item => {
             const lineEndLength = 15; // Comprimento da linha horizontal final
             
-           
+            // Calcula X final da linha horizontal
+            // A linha vai fazer: Start -> (elbowX, finalY) -> (endX, finalY)
+            // Usamos o finalY ajustado no "cotovelo" para suavizar
             const endX = item.isRight ? item.elbowX + lineEndLength : item.elbowX - lineEndLength;
             const textX = item.isRight ? endX + 5 : endX - 5;
 
-           
+            // Linha
             ctx.beginPath();
             ctx.strokeStyle = item.color;
             ctx.lineWidth = 1.5;
@@ -271,8 +280,10 @@ function atualizarKPIs(kpis) {
     });
 }
 
+// --- Renderização dos Gráficos ---
 function renderizarGraficos(chartsData) {
     
+    // 1. TOP PRESTADORES 
     if (chartPrestadores) chartPrestadores.destroy();
     chartPrestadores = new Chart(document.getElementById('chart-prestadores'), {
         type: 'bar',
@@ -339,53 +350,89 @@ function renderizarGraficos(chartsData) {
         }
     });
 
+    // 2. PRINCIPAIS MOTIVOS DE GLOSA
     if (chartMotivos) chartMotivos.destroy();
     
     const motivosLabels = chartsData.motivos.map(m => m.motivo);
     const motivosData = chartsData.motivos.map(m => m.valor);
-    const totalMotivos = motivosData.reduce((a,b) => a+b, 0);
 
     chartMotivos = new Chart(document.getElementById('chart-motivos'), {
-        type: 'doughnut',
+        type: 'bar',
         data: {
             labels: motivosLabels,
             datasets: [{
+                label: 'Valor Glosado por Motivo',
                 data: motivosData,
-                backgroundColor: CORES_VIBRANTES,
-                borderWidth: 3,
-                borderColor: '#ffffff'
+                backgroundColor: CORES_VIBRANTES[1], // Rosa Maida
+                borderRadius: 6,
+                borderWidth: 0
             }]
         },
         options: {
             ...configComum,
-            cutout: '60%',
+            indexAxis: 'x', // Barras verticais
             layout: {
                 padding: {
-                    top: 100,
-                    bottom: 40,
-                    left: 60,
-                    right: 60
+                    top: 20,
+                    bottom: 5,
+                    left: 5,
+                    right: 5
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        autoSkip: false,
+                        callback: function(value, index, values) {
+                            const label = this.getLabelForValue(value);
+                            // Truncar labels muito longos
+                            if (label.length > 20) {
+                                return label.substring(0, 20) + '...';
+                            }
+                            return label;
+                        }
+                    }
+                },
+                y: {
+                    display: false, // Esconde o eixo Y (números/título)
+                    title: { display: false },
+                    grid: { display: false },
+                    beginAtZero: true
                 }
             },
             plugins: {
                 ...configComum.plugins,
                 datalabels: {
-                    display: false
+                    display: true,
+                    anchor: 'end',
+                    align: 'top',
+                    formatter: formatCurrency,
+                    color: '#585958',
+                    font: { 
+                        weight: 'bold',
+                        size: 11
+                    },
+                    clamp: false,
+                    clip: false
                 },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => {
-                            const val = ctx.raw;
-                            const perc = ((val / totalMotivos) * 100).toFixed(1);
-                            return `${ctx.label}: ${formatCurrency(val)} (${perc}%)`;
+                        label: function(context) {
+                            return `${context.label}: ${formatCurrency(context.parsed.y)}`;
                         }
                     }
                 }
             }
-        },
-        plugins: [pluginSetasLegendas]
+        }
     });
 
+
+    // 3. DISTRIBUIÇÃO POR CATEGORIA 
 
     if (chartItens) chartItens.destroy();
     const dadosItens = chartsData.categorias
@@ -393,8 +440,10 @@ function renderizarGraficos(chartsData) {
         .sort((a,b) => b.glosado - a.glosado)
         .slice(0, 8);
 
+    // Ordenar por valor glosado para melhor visualização no gráfico de linha
     dadosItens.sort((a, b) => a.glosado - b.glosado);
 
+    // Função para quebrar labels longos em duas linhas
     function quebrarLabel(texto) {
         const palavras = texto.split(' ');
         if (palavras.length <= 2) return texto;
@@ -470,6 +519,7 @@ function renderizarGraficos(chartsData) {
                         display: true,
                         text: 'Valor Glosado (R$)'
                     },
+                    // Aumentar o padding no topo para os data labels
                     afterFit: function(scale) {
                         scale.height = scale.height + 60;
                     }
@@ -502,6 +552,7 @@ function renderizarGraficos(chartsData) {
             }
         }
     });
+    // 4. DESEMPENHO DOS AUDITORES
     if (chartAuditores) chartAuditores.destroy();
     chartAuditores = new Chart(document.getElementById('chart-auditores'), {
         type: 'bar',
@@ -549,22 +600,29 @@ function renderizarGraficos(chartsData) {
         }
     });
 
+    // 5.  GRÁFICO: EFICIÊNCIA DA GLOSA POR CATEGORIA
     renderizarEficienciaGlosa(chartsData.categorias);
     
+    // 6.  GRÁFICO: DISPERSÃO CUSTO vs TEMPO
+    
+    // 7. GRÁFICO: EVOLUÇÃO TEMPORAL
     renderizarEvolucaoTemporal(chartsData.evolucao || []);
     renderizarDetalhamentoCategorias(chartsData.categorias || []);
 }
 
+// 5. GRÁFICO DE EFICIÊNCIA - Taxa de Glosa por Categoria
 function renderizarEficienciaGlosa(categorias) {
     const ctx = document.getElementById('chart-eficiencia');
     if (!ctx) return;
 
     if (chartEficiencia) chartEficiencia.destroy();
 
+    // 1. Filtrar e Calcular o Total de Glosa Geral (para o novo cálculo de percentual)
     const categoriasComGlosa = categorias.filter(cat => (cat.glosado || 0) > 0);
     const totalGlosaGeral = categoriasComGlosa.reduce((sum, cat) => sum + cat.glosado, 0);
 
     if (totalGlosaGeral === 0) {
+        // Se não houver glosa, não renderiza o gráfico (ou renderiza vazio)
         return; 
     }
 
@@ -594,22 +652,47 @@ function renderizarEficienciaGlosa(categorias) {
             datasets: [{
                 label: 'Contribuição para Glosa Total (%)',
                 data: dadosEficiencia.map(d => parseFloat(d.percentualGlosa)),
-                backgroundColor: CORES_VIBRANTES[2],
-                borderRadius: 6
+                backgroundColor: CORES_VIBRANTES[2], // Amarelo Maida - mesma cor do gráfico de motivos
+                borderRadius: 6,
+                borderWidth: 0
             }]
         },
         options: {
             ...configComum,
+            indexAxis: 'x', // Barras verticais para consistência
+            layout: {
+                padding: {
+                    top: 20,
+                    bottom: 5,
+                    left: 5,
+                    right: 5
+                }
+            },
             scales: {
-                y: {
-                    display: false, 
-                    title: { display: false }, 
-                    grid: { display: false }, 
-                    beginAtZero: true,
-                    max: 100 
-                },
                 x: {
-                    grid: { display: false } 
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        autoSkip: false,
+                        callback: function(value, index, values) {
+                            const label = this.getLabelForValue(value);
+                            // Truncar labels muito longos
+                            if (label.length > 20) {
+                                return label.substring(0, 20) + '...';
+                            }
+                            return label;
+                        }
+                    }
+                },
+                y: {
+                    display: false,
+                    title: { display: false },
+                    grid: { display: false },
+                    beginAtZero: true,
+                    max: 100 // Max de 100 para percentual
                 }
             },
             plugins: {
@@ -620,7 +703,12 @@ function renderizarEficienciaGlosa(categorias) {
                     align: 'top',
                     formatter: (value) => value + '%',
                     color: '#585958',
-                    font: { weight: 'bold' }
+                    font: { 
+                        weight: 'bold',
+                        size: 11
+                    },
+                    clamp: false,
+                    clip: false
                 },
                 tooltip: {
                     callbacks: {
@@ -635,6 +723,8 @@ function renderizarEficienciaGlosa(categorias) {
     });
 }
 
+
+// 7. GRÁFICO DE EVOLUÇÃO TEMPORAL
 function renderizarEvolucaoTemporal(dadosEvolucao) {
     const ctx = document.getElementById('chart-evolucao');
     if (!ctx) return;
@@ -693,14 +783,17 @@ function renderizarEvolucaoTemporal(dadosEvolucao) {
         }
     });
 }
+// --- DETALHAMENTO POR CATEGORIA ---
 function renderizarDetalhamentoCategorias(categorias) {
     const container = document.getElementById('categories-container');
     if (!container) return;
 
+    // Calcular totais gerais para referência
     const totalApresentadoGeral = categorias.reduce((sum, cat) => sum + (cat.apresentado || 0), 0);
     const totalGlosadoGeral = categorias.reduce((sum, cat) => sum + (cat.glosado || 0), 0);
     const totalApuradoGeral = categorias.reduce((sum, cat) => sum + (cat.apurado || 0), 0);
 
+    // Ordenar categorias por valor glosado (maior primeiro)
     const categoriasOrdenadas = categorias
         .filter(cat => (cat.apresentado || 0) > 0) // Só mostra categorias com valores
         .sort((a, b) => (b.glosado || 0) - (a.glosado || 0));
@@ -726,9 +819,11 @@ function renderizarDetalhamentoCategorias(categorias) {
         const apurado = cat.apurado || 0;
         const glosado = cat.glosado || 0;
         
+        // Calcular porcentagens
         const percentAprovado = apresentado > 0 ? ((apurado / apresentado) * 100).toFixed(1) : '0.0';
         const percentGlosado = apresentado > 0 ? ((glosado / apresentado) * 100).toFixed(1) : '0.0';
 
+        // Formatar nome da categoria
         const nomeFormatado = formatarNomeCategoria(cat.tipo);
 
         html += `
@@ -745,6 +840,7 @@ function renderizarDetalhamentoCategorias(categorias) {
         `;
     });
 
+    // Adicionar linha de totais gerais
     const percentAprovadoGeral = totalApresentadoGeral > 0 ? 
         ((totalApuradoGeral / totalApresentadoGeral) * 100).toFixed(1) : '0.0';
     const percentGlosadoGeral = totalApresentadoGeral > 0 ? 
@@ -769,6 +865,7 @@ function renderizarDetalhamentoCategorias(categorias) {
     container.innerHTML = html;
 }
 
+// Função auxiliar para formatar nomes de categorias
 function formatarNomeCategoria(nome) {
     if (!nome) return 'N/A';
     

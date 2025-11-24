@@ -210,17 +210,36 @@ function criarGraficosSLA(data) {
                     label: 'SLA (%)',
                     data: dadosTipo.map(item => parseFloat(item.percentualSLA)),
                     backgroundColor: COR_AZUL,
+                    borderRadius: 4,
                 }]
             },
             options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true, max: 100, title: { display: true, text: 'Percentual (%)' } } },
+                indexAxis: 'x', // Barras VERTICAIS
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: { 
+                    x: { 
+                        grid: {
+                            display: false // Remove linhas de grid verticais
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true, 
+                        max: 100,
+                        grid: {
+                            display: false // Remove linhas de grid horizontais
+                        },
+                        display: false // Remove completamente o eixo Y
+                    } 
+                },
                 plugins: {
                     legend: { display: false },
                     datalabels: {
-                        anchor: 'center', align: 'center', color: '#ffffff',
+                        anchor: 'center', // <-- CENTRALIZADO na coluna
+                        align: 'center',  // <-- CENTRALIZADO na coluna  
+                        color: '#ffffff', // <-- FONTE BRANCA
                         font: { weight: 'bold', size: 12 },
-                        formatter: (value) => value + '%'
+                        formatter: (value) => value.toFixed(1) + '%'
                     }
                 }
             },
@@ -313,7 +332,11 @@ function criarGraficosSLA(data) {
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: 'Quantidade de Guias' } } },
+                // --- SEÇÃO CORRIGIDA ---
+                scales: { 
+                    x: { stacked: true, grid: { display: false } }, // Remove linhas verticais
+                    y: { stacked: true, display: false } // Remove eixo Y (legenda/linhas)
+                }, 
                 plugins: {
                     datalabels: {
                         display: (context) => context.dataset.data[context.dataIndex] > (totalGeral * 0.05), // Só mostra se for > 5% do total
@@ -323,7 +346,7 @@ function criarGraficosSLA(data) {
                     }
                 }
             },
-            plugins: [ChartDataLabels]
+            plugins: [ChartDataLabels] 
         });
     }
 
@@ -388,7 +411,13 @@ function criarGraficosSLA(data) {
             options: {
                 indexAxis: 'y', // <-- Barra Horizontal
                 responsive: true, maintainAspectRatio: false,
-                scales: { x: { beginAtZero: true, max: 100, title: { display: true, text: 'Percentual (%)' } } },
+                scales: { 
+                    x: { 
+                        display: false, // Remove legenda numérica e grid
+                        beginAtZero: true, 
+                        max: 100 // Removida a vírgula e o objeto 'title'
+                    } // Fechamento do eixo 'x'
+                },
                 plugins: {
                     legend: { display: false },
                     datalabels: {
@@ -417,85 +446,80 @@ function criarGraficosSLA(data) {
                 ]
             },
             options: {
-                indexAxis: 'y', // <-- Barra Horizontal
-                responsive: true, maintainAspectRatio: false,
-                scales: { x: { stacked: true, title: { display: true, text: 'Volume de Guias' } }, y: { stacked: true } },
+                indexAxis: 'y',
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: { 
+                    x: { 
+                        stacked: true, 
+                        display: false, // Remove completamente o eixo X (numerações)
+                        grid: {
+                            display: false // Remove grid horizontal
+                        }
+                    }, 
+                    y: { 
+                        stacked: true,
+                        grid: {
+                            display: false // Remove grid vertical
+                        }
+                    } 
+                },
                 plugins: {
-                    legend: { position: 'bottom' },
+                    legend: { 
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            padding: 15,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
                     datalabels: {
-                        // REGRA DE EXIBIÇÃO
                         display: (context) => {
                             const value = context.dataset.data[context.dataIndex];
                             const datasetIndex = context.datasetIndex;
                             
-                            // Pega o valor da barra Rosa (índice 1) correspondente a esta linha
                             const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
 
                             if (datasetIndex === 0) {
-                                // AZUL:
-                                // 1. Se tem barra Rosa (valorRosa > 0), o Azul está "preso" embaixo. Só mostra se tiver espaço (> 15).
-                                // 2. Se NÃO tem barra Rosa (valorRosa == 0), o Azul está livre. Mostra qualquer valor > 0.
                                 return valorRosa > 0 ? value > 15 : value > 0;
                             }
-                            
-                            // ROSA: Mostra sempre que existir
                             return value > 0;
                         },
-
-                        // REGRA DE COR
                         color: (context) => {
                             const value = context.dataset.data[context.dataIndex];
                             const datasetIndex = context.datasetIndex;
                             const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
-
-                            // Lógica comum: Se a legenda vai pra fora ('end'), texto escuro. Se fica dentro ('center'), texto branco.
-                            // Se for Azul e tiver Rosa em cima, é sempre branco (pois fica dentro).
-                            // Se for Azul sem Rosa e pequeno (<100), vai pra fora (escuro).
                             
-                            if (datasetIndex === 0 && valorRosa > 0) return '#ffffff'; // Azul preso embaixo
-                            
-                            // Daqui pra baixo vale para: Rosa OU Azul-sozinho
+                            if (datasetIndex === 0 && valorRosa > 0) return '#ffffff'; 
                             return value < 100 ? '#333333' : '#ffffff';
                         },
-
-                        // REGRA DE POSIÇÃO (ANCORAGEM)
                         anchor: (context) => {
                             const value = context.dataset.data[context.dataIndex];
                             const datasetIndex = context.datasetIndex;
                             const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
 
-                            // Se for Azul e tiver Rosa em cima: FICA NO CENTRO.
                             if (datasetIndex === 0 && valorRosa > 0) return 'center';
-
-                            // Se for Rosa OU Azul-sozinho: < 100 joga pra ponta
                             return value < 100 ? 'end' : 'center';
                         },
-
-                        // REGRA DE ALINHAMENTO
                         align: (context) => {
                             const value = context.dataset.data[context.dataIndex];
                             const datasetIndex = context.datasetIndex;
                             const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
 
-                            // Se for Azul e tiver Rosa em cima: FICA NO CENTRO.
                             if (datasetIndex === 0 && valorRosa > 0) return 'center';
-
-                            // Se for Rosa OU Azul-sozinho: < 100 empurra pra fora
                             return value < 100 ? 'end' : 'center';
                         },
-                        
-                        // OFFSET (Afastamento da barra)
                         offset: (context) => {
                             const value = context.dataset.data[context.dataIndex];
                             const datasetIndex = context.datasetIndex;
                             const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
                             
-                            // Aplica offset se o texto estiver do lado de fora
                             const estaDoLadoDeFora = (datasetIndex === 1 && value < 100) || (datasetIndex === 0 && valorRosa === 0 && value < 100);
                             
                             return estaDoLadoDeFora ? 4 : 0;
                         },
-
                         font: { weight: 'bold', size: 10 },
                         formatter: (value) => value.toLocaleString()
                     }
@@ -780,7 +804,6 @@ function criarGraficos(stats) {
             ctx.restore();
         }
 
-        // Adiciona o plugin personalizado para desenhar as setas
         Chart.register({
             id: 'setasLegendasDistribuidas',
             afterDraw: function(chart) {
@@ -1081,13 +1104,11 @@ function exportarParaCSV() {
         guiasData.forEach(guia => {
             const baseRow = `\"${guia.numeroGuiaOperadora}\";\"${guia.prestadorNome}\";\"${guia.tipoGuia || 'N/A'}\";\"${guia.dataRegulacao}\";\"${guia.status}\";\"${guia.totalNegado}\"`;
             
-            // Esta parte também depende de 'itensGuia'
             if (guia.itensGuia && guia.itensGuia.length > 0) {
                 guia.itensGuia.forEach(item => {
                     csvContent += `${baseRow};\"${item.codigo}\";\"${item.descricao}\";\"${item.quantSolicitada || 0}\";\"${item.quantAutorizada || 0}\";\"${item.quantNegada || 0}\";\"${item.valorUnitario || 0}\";\"${item.valorTotalNegado || 0}\"\n`;
                 });
             } else {
-                // Exporta a guia mesmo sem itens (opcional)
                 csvContent += `${baseRow};"N/A";"N/A";"0";"0";"0";"0";"0"\n`;
             }
         });
@@ -1137,8 +1158,7 @@ window.addEventListener('click', (event) => {
     }
 });
 
-// Listener da busca
 document.getElementById('search-guia').addEventListener('keyup', () => {
-    currentPage = 1; // Sempre volta para a primeira página ao filtrar
+    currentPage = 1; 
     filtrarGuias();
 });

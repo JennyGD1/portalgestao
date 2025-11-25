@@ -15,6 +15,137 @@ function getInicioSemana(dateString) {
     return inicioSemana.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
 }
 
+// --------------------------
+// SLA EM TEMPO REAL 
+// -------------------------
+router.get('/sla-tempo-real', async (req, res) => {
+    try {
+        console.log('🔄 Iniciando monitoramento de SLA em Tempo Real...');
+
+        // 1. OBTER TOKEN DE ACESSO
+        const GAS_TOKEN_URL = process.env.GAS_TOKEN_URL
+        let authToken = '';
+
+        try {
+            const tokenResponse = await fetch(GAS_TOKEN_URL);
+            if (!tokenResponse.ok) throw new Error('Falha ao obter token do GAS');
+            const tokenData = await tokenResponse.json();
+            authToken = tokenData.token || tokenData.accessToken || tokenData; 
+        } catch (tokenError) {
+            console.error('❌ Erro fatal: Não foi possível obter o token.', tokenError);
+            return res.status(500).json({ success: false, error: 'Falha na autenticação externa' });
+        }
+
+        // 2. CONFIGURAÇÃO DAS FILAS
+        const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE';
+        
+        const filas = [
+            { id: 'INTERNACAO', label: 'Internação', url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO` },
+            { id: 'SADT', label: 'SP / SADT', url: `${baseURL}&tipoDeGuia=SP_SADT` },
+            { id: 'PRORROGACAO', label: 'Prorrogação', url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO` },
+            { id: 'OPME', label: 'OPME', url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME` }
+        ];
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        };
+
+        // 3. BUSCAR DADOS NAS FILAS
+        const resultados = await Promise.all(filas.map(async (fila) => {
+            let page = 0;
+            let temMaisPaginas = true;
+            let guiasBrutas = [];
+            
+            // Loop de Paginação
+            while (temMaisPaginas) {
+                try {
+                    const response = await fetch(`${fila.url}&page=${page}`, { headers });
+                    if (response.status === 401 || response.status === 403) { temMaisPaginas = false; continue; }
+                    if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
+                    
+                    const json = await response.json();
+                    const itensPagina = json.content || json.data || [];
+                    
+                    if (itensPagina.length === 0) {
+                        temMaisPaginas = false;
+                    } else {
+                        guiasBrutas = guiasBrutas.concat(itensPagina);
+                        if (json.last === true || json.lastPage === true || itensPagina.length < 20) { 
+                            temMaisPaginas = false;
+                        } else {
+                            page++;
+                        }
+                    }
+                } catch (err) {
+                    temMaisPaginas = false; 
+                }
+            }
+
+            // 4. FILTRAGEM RIGOROSA E CÁLCULOS
+            const agora = new Date();
+            const statusPermitidos = ['EM_ANALISE', 'EM_REANALISE'];
+
+            const guiasValidas = guiasBrutas.filter(guia => {
+                const status = guia.statusRegulacao ? String(guia.statusRegulacao).toUpperCase().trim() : '';
+                return statusPermitidos.includes(status);
+            });
+
+            let total = guiasValidas.length;
+            let dentroPrazo = 0;
+            let critico24h = 0;
+            let listaCriticos = [];
+
+            guiasValidas.forEach(guia => {
+                let dataVencimento = null;
+                
+                if (guia.dataVencimentoSla) {
+                    dataVencimento = new Date(guia.dataVencimentoSla);
+                } else if (guia.dataSolicitacao) {
+                    const diasPrazo = fila.id === 'SADT' ? 10 : 21; 
+                    dataVencimento = new Date(guia.dataSolicitacao);
+                    dataVencimento.setDate(dataVencimento.getDate() + diasPrazo);
+                }
+
+                if (dataVencimento) {
+                    const diffMs = dataVencimento - agora;
+                    const diffHoras = diffMs / (1000 * 60 * 60);
+                    const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
+
+                    if (diffMs > 0) {
+                        dentroPrazo++;
+                        if (diffHoras <= 24) {
+                            critico24h++;
+                            listaCriticos.push(numeroGuia);
+                        }
+                    } else {
+                        critico24h++;
+                        listaCriticos.push(numeroGuia);
+                    }
+                }
+            });
+
+            const percentualSLA = total > 0 ? ((dentroPrazo / total) * 100).toFixed(1) : 100;
+
+            return {
+                id: fila.id,
+                label: fila.label,
+                total: total,
+                percentualSLA: percentualSLA,
+                critico24h: critico24h,
+                listaCriticos: listaCriticos,
+                status: parseFloat(percentualSLA) < 90 ? 'danger' : (parseFloat(percentualSLA) < 98 ? 'warning' : 'success')
+            };
+        }));
+
+        res.json({ success: true, data: resultados });
+
+    } catch (error) {
+        console.error('❌ Erro na rota sla-tempo-real:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+module.exports = router;
 // ------------------------------------------------------------------------------------------------
 // Rota API: guias-negadas
 // ------------------------------------------------------------------------------------------------

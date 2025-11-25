@@ -7,7 +7,6 @@ router.get('/dashboard', async (req, res) => {
         const { startDate, endDate } = req.query;
         const collection = req.db.collection('auditoria');
 
-        // Filtro de Data (Baseado na data da auditoria)
         const query = {};
         if (startDate && endDate) {
             query["auditoria.dataAuditoria"] = {
@@ -26,17 +25,14 @@ router.get('/dashboard', async (req, res) => {
         let countInternacoesComData = 0;
         let countGuias = docs.length;
 
-        // Mapas para Gráficos
         const prestadoresMap = new Map();
         const auditoresMap = new Map();
         const categoriasMap = new Map();
         const motivosGlosaMap = new Map();
 
-        // 🚨 CORREÇÃO: Movemos as variáveis de dispersaoData e evolucaoData PARA FORA do forEach
         const dispersaoData = [];
-        const evolucaoMap = new Map(); // Usamos Map para agrupar por mês
+        const evolucaoMap = new Map(); 
 
-        // Lista de placeholders que devem ser removidos do gráfico
         const PLACEHOLDERS_GLOSA_IGNORADOS = [
             '', // String vazia
             'sem justificativa', 
@@ -64,13 +60,33 @@ router.get('/dashboard', async (req, res) => {
 
             // 2. Tempo Médio de Internamento
             if (atend.dataInternacao && atend.dataAlta) {
-                const inicio = new Date(atend.dataInternacao);
-                const fim = new Date(atend.dataAlta);
-                const diffTime = Math.abs(fim - inicio);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                somaDiasInternacao += diffDays;
-                countInternacoesComData++;
+            const inicio = new Date(atend.dataInternacao);
+            const fim = new Date(atend.dataAlta);
+            
+            // Remove o Math.abs para detectar datas invertidas
+            const diffTime = fim - inicio; 
+            
+            // Converte para dias
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            // --- BLOCO DE SEGURANÇA E DETECÇÃO ---
+            
+            // 1. Ignora se a data de Alta for ANTERIOR à internação (negativo)
+            if (diffDays < 0) {
+                console.warn(`[ALERTA] Data Invertida - ID: ${doc._id}, Prestador: ${prest.nomePrestador}`);
+                return; 
             }
+
+            // 2. Acha o registro absurdo (ex: maior que 365 dias)
+            if (diffDays > 365) {
+                console.warn(`[ALERTA] Internação Longa (${diffDays} dias) - ID: ${doc._id}, Paciente: ${atend.nomePaciente || 'N/A'}`);
+
+            }
+            
+
+            somaDiasInternacao += diffDays;
+            countInternacoesComData++;
+        }
 
             // 3. Glosa por Prestador
             const nomePrestador = prest.nomeFantasia || prest.nomePrestador || 'N/A';
@@ -80,11 +96,14 @@ router.get('/dashboard', async (req, res) => {
             prestadoresMap.set(nomePrestador, pData);
 
             // 4. Desempenho Auditor
-            const nomeAuditor = aud.nomeResponsavelAuditor || aud.nomeMedicoAuditor || 'N/A';
-            const aData = auditoresMap.get(nomeAuditor) || { nome: nomeAuditor, guias: 0, glosaTotal: 0 };
-            aData.guias++;
-            aData.glosaTotal += (aud.valorTotalGlosado || 0);
-            auditoresMap.set(nomeAuditor, aData);
+            const nomeAuditor = aud.nomeEnfermeiroResponsavel;
+
+            if (nomeAuditor && nomeAuditor.trim() !== '') {
+                const aData = auditoresMap.get(nomeAuditor) || { nome: nomeAuditor, guias: 0, glosaTotal: 0 };
+                aData.guias++;
+                aData.glosaTotal += (aud.valorTotalGlosado || 0);
+                auditoresMap.set(nomeAuditor, aData);
+            }
 
             // 5. Detalhamento por Categoria (Itens)
             if (aud.itens) {
@@ -125,7 +144,6 @@ router.get('/dashboard', async (req, res) => {
                 });
             }
 
-            // 🚨 CORREÇÃO: Dados para dispersão (custo vs tempo)
             if (atend.dataInternacao && atend.dataAlta && aud.valorTotalApresentado) {
                 const inicio = new Date(atend.dataInternacao);
                 const fim = new Date(atend.dataAlta);
@@ -139,12 +157,18 @@ router.get('/dashboard', async (req, res) => {
                 });
             }
 
-            // 🚨 CORREÇÃO: Dados para evolução temporal (agrupa por mês)
             if (aud.dataAuditoria) {
                 const dataAud = new Date(aud.dataAuditoria);
+                
+                // --- TRAVA DE SEGURANÇA ---
+                // Se o ano for menor que 2000, ignora este registro no gráfico temporal
+                if (dataAud.getFullYear() < 2000) {
+                    return; 
+                }
+                // --------------------------
+
                 const mesAno = `${dataAud.getFullYear()}-${(dataAud.getMonth() + 1).toString().padStart(2, '0')}`;
                 
-                // Usando Map para agrupar por mês
                 const mesData = evolucaoMap.get(mesAno) || { 
                     mes: mesAno, 
                     apresentado: 0, 
@@ -180,7 +204,6 @@ router.get('/dashboard', async (req, res) => {
             .sort((a, b) => b.valor - a.valor)
             .slice(0, 5);
 
-        // 🚨 CORREÇÃO: Processamento da evolução temporal
         const evolucaoFormatada = Array.from(evolucaoMap.values())
             .sort((a, b) => a.mes.localeCompare(b.mes))
             .slice(-6) // Últimos 6 meses

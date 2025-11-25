@@ -562,7 +562,7 @@ function criarGraficosSLA(data) {
                         pointRadius: 4
                     },
                     {
-                        label: 'Gabriel Costa',
+                        label: 'Robô',
                         data: timeline.map(t => t.gabriel),
                         borderColor: '#2980b9', // Azul Escuro
                         backgroundColor: '#2980b9',

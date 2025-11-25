@@ -521,6 +521,7 @@ function renderizarGraficos(chartsData) {
                         display: true,
                         text: 'Valor Glosado (R$)'
                     },
+                    // Aumentar o padding no topo para os data labels
                     afterFit: function(scale) {
                         scale.height = scale.height + 60;
                     }
@@ -555,6 +556,10 @@ function renderizarGraficos(chartsData) {
     });
     // 4. DESEMPENHO DOS AUDITORES
     if (chartAuditores) chartAuditores.destroy();
+
+    const auditoresContainer = document.getElementById('chart-auditores').parentElement;
+    auditoresContainer.className = 'chart-container chart-container--auditores';
+
     chartAuditores = new Chart(document.getElementById('chart-auditores'), {
         type: 'bar',
         data: {
@@ -563,7 +568,8 @@ function renderizarGraficos(chartsData) {
                 label: 'Valor Identificado em Glosas',
                 data: chartsData.auditores.map(a => a.glosaTotal),
                 backgroundColor: CORES_VIBRANTES[4],
-                borderRadius: 6
+                borderRadius: 6,
+                borderWidth: 0
             }]
         },
         options: {
@@ -572,19 +578,33 @@ function renderizarGraficos(chartsData) {
             layout: {
                 padding: {
                     left: 5,
-                    right: 50 
+                    right: 90, 
+                    top: 20,
+                    bottom: 20
                 }
             },
-            
             scales: {
                 x: {
-                    display: false, // Esconde o eixo X (números/título)
-                    title: { display: false }, // Esconde o título do eixo X
-                    grid: { display: false } // Esconde as linhas verticais
+                    display: false, 
+                    title: { display: false }, 
+                    grid: { display: false } 
                 },
                 y: {
                     display: true,
-                    grid: { display: false } // Esconde as linhas horizontais
+                    grid: { display: false },
+                    ticks: {
+                        autoSkip: false,
+                        maxRotation: 0,
+                        minRotation: 0,
+                        callback: function(value) {
+                            return this.getLabelForValue(value);
+                        },
+                        font: {
+                            size: 11,
+                            family: 'Inter, sans-serif'
+                        },
+                        padding: 8
+                    }
                 }
             },
             plugins: {
@@ -595,7 +615,19 @@ function renderizarGraficos(chartsData) {
                     align: 'right',
                     formatter: formatCurrency,
                     color: '#585958',
-                    font: { weight: 'bold' }
+                    font: { 
+                        weight: 'bold',
+                        size: 11
+                    },
+                    clamp: false, 
+                    clip: false   
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.label}: ${formatCurrency(context.parsed.x)}`;
+                        }
+                    }
                 }
             }
         }
@@ -603,7 +635,8 @@ function renderizarGraficos(chartsData) {
 
     // 5.  GRÁFICO: EFICIÊNCIA DA GLOSA POR CATEGORIA
     renderizarEficienciaGlosa(chartsData.categorias);
-
+    
+    // 6.  GRÁFICO: DISPERSÃO CUSTO vs TEMPO
     
     // 7. GRÁFICO: EVOLUÇÃO TEMPORAL
     renderizarEvolucaoTemporal(chartsData.evolucao || []);
@@ -617,7 +650,7 @@ function renderizarEficienciaGlosa(categorias) {
 
     if (chartEficiencia) chartEficiencia.destroy();
 
-    // 1. Filtrar e Calcular o Total de Glosa Geral 
+    // 1. Filtrar e Calcular o Total de Glosa Geral (para o novo cálculo de percentual)
     const categoriasComGlosa = categorias.filter(cat => (cat.glosado || 0) > 0);
     const totalGlosaGeral = categoriasComGlosa.reduce((sum, cat) => sum + cat.glosado, 0);
 
@@ -640,7 +673,7 @@ function renderizarEficienciaGlosa(categorias) {
                      .replace('MATERIAIS_ESPECIAIS', 'Mat. Especiais')
                      .replace('PACOTES', 'Pacotes'),
             percentualGlosa: ((cat.glosado / totalGlosaGeral) * 100).toFixed(1),
-            valorGlosado: cat.glosado
+            valorGlosado: cat.glosado // Mantém para o Tooltip
         }))
         .sort((a, b) => parseFloat(b.percentualGlosa) - parseFloat(a.percentualGlosa))
         .slice(0, 6);
@@ -663,7 +696,7 @@ function renderizarEficienciaGlosa(categorias) {
             layout: {
                 padding: {
                     top: 20,
-                    bottom: 50, 
+                    bottom: 50, // Aumentei o padding inferior para as legendas
                     left: 5,
                     right: 5
                 }
@@ -734,62 +767,219 @@ function renderizarEficienciaGlosa(categorias) {
 
 // 7. GRÁFICO DE EVOLUÇÃO TEMPORAL
 function renderizarEvolucaoTemporal(dadosEvolucao) {
+    console.log("--- EVOLUÇÃO TEMPORAL OTIMIZADA ---");
+    console.log("Dados Recebidos:", dadosEvolucao);
+    
     const ctx = document.getElementById('chart-evolucao');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error("Elemento chart-evolucao não encontrado!");
+        return;
+    }
 
     if (chartEvolucao) chartEvolucao.destroy();
 
+    // Obter datas do filtro para contexto
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+
     let dados = dadosEvolucao;
-    if (!dados || dados.length === 0) {
-        const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        const mesAtual = new Date().getMonth();
-        dados = meses.slice(Math.max(0, mesAtual - 5), mesAtual + 1).map((mes, index) => ({
-            mes,
-            apresentado: 150000 + Math.random() * 50000,
-            glosado: 20000 + Math.random() * 15000,
-            guias: 80 + Math.floor(Math.random() * 40)
-        }));
+    
+    // VALIDAÇÃO ROBUSTA: Se não houver dados válidos, usar fallback
+    if (!dados || !Array.isArray(dados) || dados.length === 0) {
+        console.log('Usando dados de fallback para evolução temporal');
+        dados = gerarDadosEvolucaoFallback(startDate, endDate);
+    } else {
+        // Filtrar dados inválidos
+        dados = dados.filter(d => d && (d.apresentado > 0 || d.glosado > 0));
     }
 
+    console.log('Dados finais para gráfico:', dados);
+
+    // Se ainda não houver dados, mostrar mensagem
+    if (!dados || dados.length === 0) {
+        ctx.innerHTML = `
+            <div class="no-data-message">
+                <i class="fas fa-chart-line"></i>
+                <p>Não há dados de evolução temporal para o período selecionado</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Configuração otimizada do gráfico
     chartEvolucao = new Chart(ctx, {
         type: 'line',
         data: {
             labels: dados.map(d => d.mes),
             datasets: [
                 {
-                    label: 'Valor Apresentado',
-                    data: dados.map(d => d.apresentado),
-                    borderColor: CORES_VIBRANTES[0],
-                    backgroundColor: CORES_VIBRANTES[0] + '20',
-                    tension: 0.4,
-                    fill: true
+                    label: 'Valor Apresentado (R$)',
+                    data: dados.map(d => d.apresentado || 0),
+                    borderColor: '#0070ff',
+                    backgroundColor: 'rgba(0, 112, 255, 0.1)',
+                    tension: 0.3,
+                    fill: true,
+                    pointBackgroundColor: '#0070ff',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 8,
+                    borderWidth: 2
                 },
                 {
-                    label: 'Valor Glosado',
-                    data: dados.map(d => d.glosado),
-                    borderColor: CORES_VIBRANTES[1],
-                    backgroundColor: CORES_VIBRANTES[1] + '20',
-                    tension: 0.4,
-                    fill: true
+                    label: 'Valor Glosado (R$)',
+                    data: dados.map(d => d.glosado || 0),
+                    borderColor: '#ff0073',
+                    backgroundColor: 'rgba(255, 0, 115, 0.1)',
+                    tension: 0.3,
+                    fill: true,
+                    pointBackgroundColor: '#ff0073',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 8,
+                    borderWidth: 2
                 }
             ]
         },
         options: {
-            ...configComum,
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
             scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        autoSkip: true,
+                        maxTicksLimit: 12,
+                        font: {
+                            size: 11
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Período',
+                        font: {
+                            weight: 'bold',
+                            size: 12
+                        }
+                    }
+                },
                 y: {
                     beginAtZero: true,
-                    title: { display: true, text: 'Valor (R$)' }
+                    title: { 
+                        display: true, 
+                        text: 'Valor (R$)',
+                        font: {
+                            weight: 'bold',
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            if (value >= 1000000) {
+                                return 'R$ ' + (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return 'R$ ' + (value / 1000).toFixed(0) + 'K';
+                            }
+                            return 'R$ ' + value;
+                        },
+                        font: {
+                            size: 11
+                        }
+                    }
                 }
             },
             plugins: {
-                ...configComum.plugins,
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15,
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label = label.replace(' (R$)', ''); // Remove o (R$) do label no tooltip
+                            }
+                            label += ': ' + formatCurrency(context.parsed.y);
+                            return label;
+                        },
+                        title: function(tooltipItems) {
+                            // Mostra o período completo no título do tooltip
+                            return `Período: ${tooltipItems[0].label}`;
+                        }
+                    }
+                },
                 datalabels: {
-                    display: false
+                    display: false // Desativa labels nos pontos para não poluir
                 }
             }
         }
     });
+}
+
+// Função auxiliar para gerar dados de fallback
+function gerarDadosEvolucaoFallback(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const dados = [];
+    
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays <= 31) {
+        // Período curto: por dia
+        for (let i = 0; i <= Math.min(diffDays, 30); i++) {
+            const date = new Date(start);
+            date.setDate(start.getDate() + i);
+            dados.push({
+                mes: date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+                apresentado: 15000 + Math.random() * 35000,
+                glosado: 800 + Math.random() * 5000,
+                guias: 3 + Math.floor(Math.random() * 15)
+            });
+        }
+    } else {
+        // Período longo: por mês (últimos 12 meses)
+        const currentMonth = new Date();
+        currentMonth.setMonth(currentMonth.getMonth() - 11); // 12 meses atrás
+        currentMonth.setDate(1);
+        
+        for (let i = 0; i < 12; i++) {
+            const mesAno = `${currentMonth.getFullYear()}-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`;
+            dados.push({
+                mes: currentMonth.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+                apresentado: 40000 + Math.random() * 120000,
+                glosado: 2000 + Math.random() * 15000,
+                guias: 10 + Math.floor(Math.random() * 40)
+            });
+            currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+    }
+    
+    return dados;
 }
 // --- DETALHAMENTO POR CATEGORIA ---
 function renderizarDetalhamentoCategorias(categorias) {
@@ -848,6 +1038,7 @@ function renderizarDetalhamentoCategorias(categorias) {
         `;
     });
 
+    // Adicionar linha de totais gerais
     const percentAprovadoGeral = totalApresentadoGeral > 0 ? 
         ((totalApuradoGeral / totalApresentadoGeral) * 100).toFixed(1) : '0.0';
     const percentGlosadoGeral = totalApresentadoGeral > 0 ? 

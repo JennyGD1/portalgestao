@@ -49,6 +49,7 @@ function createUrlParams() {
     return searchParams.toString();
 }
 
+
 // --- Funções Principais de Dados e Gráficos ---
 
 async function carregarDados() {
@@ -123,7 +124,95 @@ async function carregarDados() {
     } finally {
         hideLoading();
     }
-}       
+}    
+
+// --------------------------------------------------------------------------------
+// FUNÇÃO: MONITORAMENTO EM TEMPO REAL 
+// --------------------------------------------------------------------------------
+async function carregarSLAEmTempoReal() {
+    const container = document.getElementById('realtime-container');
+    const timeLabel = document.getElementById('last-update-time');
+    
+    // Atualiza hora
+    const agora = new Date();
+    timeLabel.textContent = `Atualizado em: ${agora.toLocaleTimeString()}`;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/sla-tempo-real`);
+        const result = await response.json();
+
+        if (result.success) {
+            container.innerHTML = '';
+            
+            result.data.forEach(fila => {
+                const card = document.createElement('div');
+                card.className = `rt-card status-${fila.status}`;
+                
+                const temAlerta = fila.critico24h > 0;
+                
+                // --- NOVA LÓGICA DE HTML DO TOOLTIP ---
+                let alertHtml = '<div style="height:34px"></div>'; // Espaço vazio se não tiver alerta
+
+                if (temAlerta) {
+                    // Monta a lista de números em HTML
+                    let listaHtml = '';
+                    if (fila.listaCriticos && fila.listaCriticos.length > 0) {
+                        listaHtml = fila.listaCriticos.map(num => 
+                            `<div class="rt-tooltip-item">${num}</div>`
+                        ).join('');
+                    } else {
+                        listaHtml = '<div class="rt-tooltip-item">Sem detalhes</div>';
+                    }
+
+                    // Estrutura: Wrapper -> Badge (visível) + Content (oculto até hover)
+                    alertHtml = `
+                        <div class="rt-alert-wrapper">
+                            <div class="rt-alert-badge">
+                                ⚠️ ${fila.critico24h} guias vencendo em < 24h
+                            </div>
+                            
+                            <div class="rt-tooltip-content">
+                                <strong>Guias Críticas (${fila.critico24h})</strong>
+                                <div class="rt-tooltip-list">
+                                    ${listaHtml}
+                                </div>
+                                <div style="font-size:0.7em; color:#999; margin-top:5px; text-align:center;">
+                                    Selecione para copiar
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                // --------------------------------------
+
+                card.innerHTML = `
+                    <div class="rt-title">${fila.label}</div>
+                    <div class="rt-stats">
+                        <div class="rt-sla">
+                            ${fila.percentualSLA}%
+                            <br><span>DENTRO DO PRAZO</span>
+                        </div>
+                        <div class="rt-volume">
+                            <strong>${fila.total}</strong>
+                            GUIAS EM ANÁLISE
+                        </div>
+                    </div>
+                    ${alertHtml}
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+    } catch (error) {
+        console.error('Erro no monitoramento realtime:', error);
+        container.innerHTML = '<div style="color:red; padding:10px;">Erro ao atualizar filas. Tentando novamente em breve...</div>';
+    }
+}
+
+carregarSLAEmTempoReal();
+
+setInterval(carregarSLAEmTempoReal, 30 * 60 * 1000);
+
 function aplicarCorSLA(slaPercentual) {
     const slaCard = document.getElementById('sla-geral-percentual').closest('.metrica-card');
     if (!slaCard) return;

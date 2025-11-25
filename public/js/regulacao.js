@@ -20,6 +20,7 @@ let slaComparativoChart = null;
 let slaTendenciaChart = null;
 let reguladorSlaChart = null;
 let reguladorVolumeChart = null;
+let iaComparativoChart = null; 
 // Modal
 const detailsModal = document.getElementById('details-modal');
 const closeModalBtn = document.querySelector('.close-btn');
@@ -149,6 +150,7 @@ function recriarCanvasSLA(id, wrapperId) {
     if (id === 'grafico-sla-tendencia' && slaTendenciaChart) slaTendenciaChart.destroy();
     if (id === 'grafico-regulador-sla' && reguladorSlaChart) reguladorSlaChart.destroy();
     if (id === 'grafico-regulador-volume' && reguladorVolumeChart) reguladorVolumeChart.destroy();
+    if (id === 'grafico-ia-comparativo' && iaComparativoChart) iaComparativoChart.destroy(); 
 
     const wrapper = document.getElementById(wrapperId);
     if (wrapper) {
@@ -528,6 +530,89 @@ function criarGraficosSLA(data) {
             plugins: [ChartDataLabels]
         });
     }
+    if (data.comparativoIA) {
+        
+        // 1. Atualizar Cards de Share
+        document.getElementById('share-ymir-val').textContent = data.comparativoIA.share.ymir + '%';
+        document.getElementById('share-gabriel-val').textContent = data.comparativoIA.share.gabriel + '%';
+        document.getElementById('share-outros-val').textContent = data.comparativoIA.share.outros + '%';
+
+        // 2. Renderizar Gráfico de Linhas
+        const timeline = data.comparativoIA.timeline || [];
+        const ctxIA = recriarCanvasSLA('grafico-ia-comparativo', 'chart-wrapper-ia-compare').getContext('2d');
+        
+        // Formatar datas para o eixo X
+        const labelsTimeline = timeline.map(t => {
+            const d = new Date(t.data);
+            return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+        });
+
+        iaComparativoChart = new Chart(ctxIA, {
+            type: 'line',
+            data: {
+                labels: labelsTimeline,
+                datasets: [
+                    {
+                        label: 'Ymir',
+                        data: timeline.map(t => t.ymir),
+                        borderColor: '#ff0073',
+                        backgroundColor: '#ff0073',
+                        tension: 0.3,
+                        borderWidth: 3,
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Gabriel Costa',
+                        data: timeline.map(t => t.gabriel),
+                        borderColor: '#2980b9', // Azul Escuro
+                        backgroundColor: '#2980b9',
+                        tension: 0.3,
+                        borderWidth: 3,
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Demais Reguladores',
+                        data: timeline.map(t => t.outros),
+                        borderColor: '#bdc3c7', // Cinza Claro
+                        backgroundColor: '#bdc3c7',
+                        borderDash: [5, 5], // Linha tracejada para diferenciar
+                        tension: 0.3,
+                        borderWidth: 2,
+                        pointRadius: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { usePointStyle: true, font: { weight: 'bold' } }
+                    },
+                    datalabels: { display: false }, 
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => `Semana de: ${items[0].label}`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Volume de Guias' }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }        
 }
 
 function recriarCanvas(id) {
@@ -804,6 +889,7 @@ function criarGraficos(stats) {
             ctx.restore();
         }
 
+        // Adiciona o plugin personalizado para desenhar as setas
         Chart.register({
             id: 'setasLegendasDistribuidas',
             afterDraw: function(chart) {
@@ -1104,11 +1190,13 @@ function exportarParaCSV() {
         guiasData.forEach(guia => {
             const baseRow = `\"${guia.numeroGuiaOperadora}\";\"${guia.prestadorNome}\";\"${guia.tipoGuia || 'N/A'}\";\"${guia.dataRegulacao}\";\"${guia.status}\";\"${guia.totalNegado}\"`;
             
+            // Esta parte também depende de 'itensGuia'
             if (guia.itensGuia && guia.itensGuia.length > 0) {
                 guia.itensGuia.forEach(item => {
                     csvContent += `${baseRow};\"${item.codigo}\";\"${item.descricao}\";\"${item.quantSolicitada || 0}\";\"${item.quantAutorizada || 0}\";\"${item.quantNegada || 0}\";\"${item.valorUnitario || 0}\";\"${item.valorTotalNegado || 0}\"\n`;
                 });
             } else {
+                // Exporta a guia mesmo sem itens (opcional)
                 csvContent += `${baseRow};"N/A";"N/A";"0";"0";"0";"0";"0"\n`;
             }
         });

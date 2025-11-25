@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
+// ------------------------------------------------------------------------------------------------
+// FUNÇÕES AUXILIARES
+// (Movidas do server.js para cá, pois só são usadas nestas rotas)
+// ------------------------------------------------------------------------------------------------
 
 function getInicioSemana(dateString) {
     // Adiciona T12:00:00 para evitar problemas de fuso horário (UTC)
@@ -11,6 +15,9 @@ function getInicioSemana(dateString) {
     return inicioSemana.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
 }
 
+// ------------------------------------------------------------------------------------------------
+// Rota API: guias-negadas
+// ------------------------------------------------------------------------------------------------
 router.get('/guias-negadas', async (req, res) => {
     try {
         console.log('🔍 Buscando guias negadas com filtros...');
@@ -94,6 +101,10 @@ router.get('/guias-negadas', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+// ------------------------------------------------------------------------------------------------
+// Rota API: estatisticas 
+// ------------------------------------------------------------------------------------------------
 router.get('/estatisticas', async (req, res) => {
     try {
         console.log('📈 Calculando estatísticas...');
@@ -189,9 +200,13 @@ router.get('/estatisticas', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+// ------------------------------------------------------------------------------------------------
+// Rota API: sla-desempenho (ATUALIZADA COM IA vs GABRIEL)
+// ------------------------------------------------------------------------------------------------
 router.get('/sla-desempenho', async (req, res) => {
     try {
-        console.log('🔄 Calculando estatísticas de SLA e Reguladores...');
+        console.log('🔄 Calculando estatísticas de SLA e Comparativo IA...');
         const guiasCollection = req.db.collection('guias');
         
         const { startDate, endDate } = req.query;
@@ -211,6 +226,13 @@ router.get('/sla-desempenho', async (req, res) => {
         const statsPorRegulador = new Map();
         const statsPorData = new Map();
 
+        // Novas estruturas para o Comparativo IA
+        const comparativoIA_PorData = new Map(); // Chave: Data, Valor: { ymir: 0, gabriel: 0, outros: 0 }
+        let totalYmir = 0;
+        let totalGabriel = 0;
+        let totalOutros = 0;
+        let totalGeralIA = 0;
+
         for (const guia of guiasEncontradas) {
             let dentroSLA = true;
             if (guia.situacaoSla === 'REGULADA_COM_ATRASO') dentroSLA = false;
@@ -223,39 +245,71 @@ router.get('/sla-desempenho', async (req, res) => {
             if (dentroSLA) tipoStats.dentroSLA++;
             statsPorTipo.set(tipoGuia, tipoStats);
 
+            let semana = null;
             if (guia.dataRegulacao) {
                 const data = guia.dataRegulacao.substring(0, 10); 
-                const semana = getInicioSemana(data); // Usa a função local
+                semana = getInicioSemana(data);
                 const dataStats = statsPorData.get(semana) || { total: 0, dentroSLA: 0 };
                 dataStats.total++;
                 if (dentroSLA) dataStats.dentroSLA++;
                 statsPorData.set(semana, dataStats);
             }
 
+            // --- LÓGICA DE REGULADORES E IA ---
             const reguladores = guia.reguladores || [];
-            if (reguladores.length === 0) {
-                 const regStats = statsPorRegulador.get('Regulação Automática') || { total: 0, dentroSLA: 0 };
-                 regStats.total++;
-                 if (dentroSLA) regStats.dentroSLA++;
-                 statsPorRegulador.set('Regulação Automática', regStats);
-            } else {
+            let reguladorIdentificado = 'Outros'; // Default para contagem temporal
+
+            // 1. Lógica para IA YMIR
+            if (reguladores.length === 0 && guia.reguladaAutomaticamente) {
+                const nomeIA = 'YMIR (IA)';
+                const regStats = statsPorRegulador.get(nomeIA) || { total: 0, dentroSLA: 0 };
+                regStats.total++;
+                if (dentroSLA) regStats.dentroSLA++;
+                statsPorRegulador.set(nomeIA, regStats);
+
+                reguladorIdentificado = 'Ymir';
+                totalYmir++;
+            } 
+            // 2. Lógica para Reguladores Humanos
+            else if (reguladores.length > 0) {
                 for (const reguladorObj of reguladores) {
                     let nome = reguladorObj.nomeRegulador || 'Regulador Desconhecido';
 
-                    nome = nome.toLowerCase();
-                    nome = nome.replace(/[^a-zÀ-ÿ\s]/g, '');
+                    // Normalização
+                    nome = nome.toLowerCase().replace(/[^a-zÀ-ÿ\s]/g, '').replace(/\s+/g, ' ').trim();
+                    const nomeOriginalFormatado = reguladorObj.nomeRegulador ? reguladorObj.nomeRegulador.trim() : 'Desconhecido';
 
-                    nome = nome.replace(/\s+/g, ' '); 
-
-                    const nomeUnificado = nome.trim();
-                    const regStats = statsPorRegulador.get(nomeUnificado) || { total: 0, dentroSLA: 0 };
+                    const regStats = statsPorRegulador.get(nome) || { total: 0, dentroSLA: 0 };
                     regStats.total++;
                     if (dentroSLA) regStats.dentroSLA++;
-                    statsPorRegulador.set(nomeUnificado, regStats);
+                    statsPorRegulador.set(nome, regStats);
+
+                    // Verifica se é o Gabriel
+                    if (nome.includes('gabriel costa campos')) {
+                        reguladorIdentificado = 'Gabriel';
+                        totalGabriel++; // Incrementa aqui (cuidado com múltiplas regulações na mesma guia, aqui conta por regulador)
+                    } else {
+                        totalOutros++;
+                    }
                 }
+            } else {
+                totalOutros++; // Sem regulador e sem flag automática
+            }
+            
+            totalGeralIA++;
+
+            // --- POPULAR DADOS TEMPORAIS (COMPARATIVO) ---
+            if (semana) {
+                const dadosSemana = comparativoIA_PorData.get(semana) || { ymir: 0, gabriel: 0, outros: 0 };
+                if (reguladorIdentificado === 'Ymir') dadosSemana.ymir++;
+                else if (reguladorIdentificado === 'Gabriel') dadosSemana.gabriel++;
+                else dadosSemana.outros++;
+                
+                comparativoIA_PorData.set(semana, dadosSemana);
             }
         }
 
+        // --- Processamento Final ---
         let totalGuiasSLA = 0;
         let totalDentroSLA = 0;
         for (const stats of statsPorTipo.values()) {
@@ -278,18 +332,47 @@ router.get('/sla-desempenho', async (req, res) => {
         })).sort((a, b) => a.data.localeCompare(b.data));
 
         const desempenhoReguladores = Array.from(statsPorRegulador.entries())
-            .filter(([nome]) => nome !== 'Regulação Automática') 
             .map(([nome, data]) => ({
-                nome: nome,
+                nome: nome.includes('gabriel costa campos') ? 'Gabriel Costa Campos' : (nome === 'YMIR (IA)' ? nome : nome),
                 total: data.total,
                 dentroSLA: data.dentroSLA,
                 foraSLA: data.total - data.dentroSLA,
                 percentualSLA: data.total > 0 ? ((data.dentroSLA / data.total) * 100).toFixed(2) : "0.00"
-            })).sort((a, b) => b.total - a.total); 
+            })).sort((a, b) => b.total - a.total);
+
+        // Prepara dados do comparativo IA para o gráfico
+        const comparativoTimeline = Array.from(comparativoIA_PorData.entries())
+            .map(([data, counts]) => ({
+                data,
+                ymir: counts.ymir,
+                gabriel: counts.gabriel,
+                outros: counts.outros
+            }))
+            .sort((a, b) => a.data.localeCompare(b.data)); // Ordena por data
+
+        // Percentuais finais
+        const percentualYmir = totalGeralIA > 0 ? ((totalYmir / totalGeralIA) * 100).toFixed(1) : "0.0";
+        const percentualGabriel = totalGeralIA > 0 ? ((totalGabriel / totalGeralIA) * 100).toFixed(1) : "0.0";
+        const totalOutrosCalculado = totalGeralIA - totalYmir - totalGabriel;
+        const percentualOutros = totalGeralIA > 0 ? ((totalOutrosCalculado / totalGeralIA) * 100).toFixed(1) : "0.0";
 
         res.json({
             success: true,
-            data: { totalGuiasSLA, slaGeral, slaPorTipo, tendenciaSLA, desempenhoReguladores }
+            data: { 
+                totalGuiasSLA, 
+                slaGeral, 
+                slaPorTipo, 
+                tendenciaSLA, 
+                desempenhoReguladores,
+                comparativoIA: {
+                    timeline: comparativoTimeline,
+                    share: {
+                        ymir: percentualYmir,
+                        gabriel: percentualGabriel,
+                        outros: percentualOutros
+                    }
+                }
+            }
         });
         
     } catch (error) {
@@ -297,5 +380,7 @@ router.get('/sla-desempenho', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+module.exports = router;
 
 module.exports = router;

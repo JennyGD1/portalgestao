@@ -168,7 +168,7 @@ async function carregarSLAEmTempoReal() {
                     alertHtml = `
                         <div class="rt-alert-wrapper">
                             <div class="rt-alert-badge">
-                                ⚠️ ${fila.critico24h} guias vencendo em < 24h
+                                ⚠️ ${fila.critico24h} Próximas a Vencer
                             </div>
                             
                             <div class="rt-tooltip-content">

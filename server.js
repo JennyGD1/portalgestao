@@ -19,8 +19,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- CONFIGURAÇÃO MONGODB ---
-const MONGODB_URI = 'mongodb+srv://jennyadmin:dX8D8p1IiWfwXzx6@regulacao.ollkzkp.mongodb.net/?appName=regulacao';
-const DB_NAME = 'guias_db';
+const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = process.env.DB_NAME;
 
 let db;
 

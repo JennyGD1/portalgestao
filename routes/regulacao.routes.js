@@ -3,7 +3,6 @@ const router = express.Router();
 
 // ------------------------------------------------------------------------------------------------
 // FUNÇÕES AUXILIARES
-// (Movidas do server.js para cá, pois só são usadas nestas rotas)
 // ------------------------------------------------------------------------------------------------
 
 function getInicioSemana(dateString) {

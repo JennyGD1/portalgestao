@@ -22,88 +22,176 @@ router.get('/sla-tempo-real', async (req, res) => {
         console.log('🔄 Iniciando monitoramento de SLA em Tempo Real...');
 
         // 1. OBTER TOKEN DE ACESSO
-        const GAS_TOKEN_URL = process.env.GAS_TOKEN_URL
+        const GAS_TOKEN_URL = process.env.GAS_TOKEN_URL; 
         let authToken = '';
 
         try {
-            const tokenResponse = await fetch(GAS_TOKEN_URL);
+            const urlToken = GAS_TOKEN_URL;
+            const tokenResponse = await fetch(urlToken);
             if (!tokenResponse.ok) throw new Error('Falha ao obter token do GAS');
             const tokenData = await tokenResponse.json();
             authToken = tokenData.token || tokenData.accessToken || tokenData; 
+            console.log('✅ Token obtido com sucesso');
         } catch (tokenError) {
             console.error('❌ Erro fatal: Não foi possível obter o token.', tokenError);
             return res.status(500).json({ success: false, error: 'Falha na autenticação externa' });
         }
 
-        // 2. CONFIGURAÇÃO DAS FILAS
-        const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE';
+        // 2. CONFIGURAÇÃO DAS FILAS COM SEPARAÇÃO ELETIVA/URGÊNCIA
+        const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE&size=20';
         
-        const filas = [
-            { id: 'INTERNACAO', label: 'Internação', url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO` },
-            { id: 'SADT', label: 'SP / SADT', url: `${baseURL}&tipoDeGuia=SP_SADT` },
-            { id: 'PRORROGACAO', label: 'Prorrogação', url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO` },
-            { id: 'OPME', label: 'OPME', url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME` }
+        const filasEletivas = [
+            { 
+                id: 'INTERNACAO_ELETIVA', 
+                label: 'Internação Eletiva', 
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO`,
+                tipo: 'eletiva',
+                prazoHoras: 21 * 24,
+                limiteAlertaHoras: 24
+            },
+            { 
+                id: 'SADT_ELETIVA', 
+                label: 'SP/SADT Eletiva', 
+                url: `${baseURL}&tipoDeGuia=SP_SADT`,
+                tipo: 'eletiva',
+                prazoHoras: 10 * 24,
+                limiteAlertaHoras: 24
+            },
+            { 
+                id: 'PRORROGACAO_ELETIVA', 
+                label: 'Prorrogação Eletiva', 
+                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
+                tipo: 'eletiva',
+                prazoHoras: 21 * 24,
+                limiteAlertaHoras: 24
+            },
+            { 
+                id: 'OPME_ELETIVA', 
+                label: 'OPME Eletiva', 
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
+                tipo: 'eletiva',
+                prazoHoras: 21 * 24,
+                limiteAlertaHoras: 24
+            }
         ];
+
+        const filasUrgencias = [
+            { 
+                id: 'INTERNACAO_URGENCIA', 
+                label: 'Internação Urgência', 
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO`,
+                tipo: 'urgencia', 
+                prazoHoras: 6,
+                limiteAlertaHoras: 1
+            },
+            { 
+                id: 'SADT_URGENCIA', 
+                label: 'SP/SADT Urgência', 
+                url: `${baseURL}&tipoDeGuia=SP_SADT`,
+                tipo: 'urgencia',
+                prazoHoras: 6,
+                limiteAlertaHoras: 1
+            },
+            { 
+                id: 'PRORROGACAO_URGENCIA', 
+                label: 'Prorrogação Urgência', 
+                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
+                tipo: 'urgencia',
+                prazoHoras: 6,
+                limiteAlertaHoras: 1
+            },
+            { 
+                id: 'OPME_URGENCIA', 
+                label: 'OPME Urgência', 
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
+                tipo: 'urgencia',
+                prazoHoras: 6,
+                limiteAlertaHoras: 1
+            }
+        ];
+
+        const filas = [...filasEletivas, ...filasUrgencias];
 
         const headers = {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${authToken}`
         };
 
-        // 3. BUSCAR DADOS NAS FILAS
-        const resultados = await Promise.all(filas.map(async (fila) => {
-            let page = 0;
-            let temMaisPaginas = true;
-            let guiasBrutas = [];
+        // 3. BUSCAR DADOS
+        const resultadosBrutos = await Promise.all(filas.map(async (fila) => {
+            console.log(`\n🔍 Buscando fila: ${fila.label}`);
             
-            // Loop de Paginação
-            while (temMaisPaginas) {
+            let page = 0;
+            let totalPages = 1;
+            let guiasBrutas = [];
+            let requestsCount = 0;
+            
+            do {
                 try {
-                    const response = await fetch(`${fila.url}&page=${page}`, { headers });
-                    if (response.status === 401 || response.status === 403) { temMaisPaginas = false; continue; }
-                    if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
+                    requestsCount++;
+                    const urlComPagina = `${fila.url}&page=${page}`;
+                    
+                    const response = await fetch(urlComPagina, { headers });
+                    
+                    if (response.status === 401 || response.status === 403) { 
+                        console.error(`⛔ Erro de Permissão na fila ${fila.label}. Status: ${response.status}`);
+                        break; 
+                    }
+                    
+                    if (!response.ok) break;
                     
                     const json = await response.json();
                     const itensPagina = json.content || json.data || [];
                     
-                    if (itensPagina.length === 0) {
-                        temMaisPaginas = false;
-                    } else {
+                    if (itensPagina.length > 0) {
                         guiasBrutas = guiasBrutas.concat(itensPagina);
-                        if (json.last === true || json.lastPage === true || itensPagina.length < 20) { 
-                            temMaisPaginas = false;
-                        } else {
-                            page++;
-                        }
+                        if (json.totalPages !== undefined) totalPages = json.totalPages;
+                    } else {
+                        break;
                     }
+                    page++;
                 } catch (err) {
-                    temMaisPaginas = false; 
+                    console.error(`❌ Erro na fila ${fila.label}:`, err.message);
+                    break; 
                 }
-            }
+                await new Promise(resolve => setTimeout(resolve, 100)); 
+            } while (page < totalPages);
 
-            // 4. FILTRAGEM RIGOROSA E CÁLCULOS
+            // 4. FILTRAGEM POR STATUS E TIPO
             const agora = new Date();
             const statusPermitidos = ['EM_ANALISE', 'EM_REANALISE'];
 
             const guiasValidas = guiasBrutas.filter(guia => {
-                const status = guia.statusRegulacao ? String(guia.statusRegulacao).toUpperCase().trim() : '';
-                return statusPermitidos.includes(status);
+                const rawStatus = guia.status || guia.statusRegulacao || guia.situacao;
+                const status = rawStatus ? String(rawStatus).toUpperCase().trim() : '';
+                
+                if (!statusPermitidos.includes(status)) return false;
+                
+                const filaGuia = guia.fila || '';
+                const isUrgencia = filaGuia.toLowerCase().includes('urgência') || 
+                                  filaGuia.toLowerCase().includes('emergência') ||
+                                  filaGuia.toLowerCase().includes('urgencia');
+                
+                if (fila.tipo === 'urgencia' && !isUrgencia) return false;
+                if (fila.tipo === 'eletiva' && isUrgencia) return false;
+                
+                return true;
             });
 
             let total = guiasValidas.length;
             let dentroPrazo = 0;
-            let critico24h = 0;
-            let listaCriticos = [];
+            let totalVencidas = 0;
+            let totalProximas = 0;
+            let listaVencidas = [];
+            let listaProximas = [];
 
             guiasValidas.forEach(guia => {
                 let dataVencimento = null;
-                
-                if (guia.dataVencimentoSla) {
-                    dataVencimento = new Date(guia.dataVencimentoSla);
+                if (guia.dataVencimentoSla || guia.dataVencimento) {
+                    dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
                 } else if (guia.dataSolicitacao) {
-                    const diasPrazo = fila.id === 'SADT' ? 10 : 21; 
                     dataVencimento = new Date(guia.dataSolicitacao);
-                    dataVencimento.setDate(dataVencimento.getDate() + diasPrazo);
+                    dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
                 }
 
                 if (dataVencimento) {
@@ -112,14 +200,18 @@ router.get('/sla-tempo-real', async (req, res) => {
                     const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
 
                     if (diffMs > 0) {
+                        // AINDA NO PRAZO
                         dentroPrazo++;
-                        if (diffHoras <= 24) {
-                            critico24h++;
-                            listaCriticos.push(numeroGuia);
+                        
+                        // Verifica se está Próxima de Vencer (Alerta Amarelo)
+                        if (diffHoras <= fila.limiteAlertaHoras) {
+                            totalProximas++;
+                            listaProximas.push(numeroGuia);
                         }
                     } else {
-                        critico24h++;
-                        listaCriticos.push(numeroGuia);
+                        // JÁ VENCEU (Alerta Vermelho)
+                        totalVencidas++;
+                        listaVencidas.push(numeroGuia);
                     }
                 }
             });
@@ -128,16 +220,26 @@ router.get('/sla-tempo-real', async (req, res) => {
 
             return {
                 id: fila.id,
+                tipo: fila.tipo,
                 label: fila.label,
                 total: total,
                 percentualSLA: percentualSLA,
-                critico24h: critico24h,
-                listaCriticos: listaCriticos,
+                totalVencidas: totalVencidas,
+                totalProximas: totalProximas,
+                listaVencidas: listaVencidas,
+                listaProximas: listaProximas,
                 status: parseFloat(percentualSLA) < 90 ? 'danger' : (parseFloat(percentualSLA) < 98 ? 'warning' : 'success')
             };
         }));
 
-        res.json({ success: true, data: resultados });
+        console.log('\n🎉 PROCESSAMENTO CONCLUÍDO');
+
+        const dadosFinais = {
+            eletivas: resultadosBrutos.filter(r => r.tipo === 'eletiva'),
+            urgencias: resultadosBrutos.filter(r => r.tipo === 'urgencia')
+        };
+
+        res.json({ success: true, data: dadosFinais });
 
     } catch (error) {
         console.error('❌ Erro na rota sla-tempo-real:', error);
@@ -152,7 +254,6 @@ router.get('/guias-negadas', async (req, res) => {
     try {
         console.log('🔍 Buscando guias negadas com filtros...');
         
-        // ACESSO AO BANCO: Usamos req.db injetado pelo server.js
         const guiasCollection = req.db.collection('guias');
 
         const { search, startDate, endDate } = req.query;

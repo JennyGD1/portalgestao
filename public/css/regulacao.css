@@ -246,9 +246,9 @@ header h1 {
 }
 
 .realtime-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 15px;
+    display: flex;
+    flex-direction: column; 
+    gap: 30px; 
 }
 
 .rt-card {

@@ -38,7 +38,7 @@ router.get('/sla-tempo-real', async (req, res) => {
         }
 
         // 2. CONFIGURAÇÃO DAS FILAS COM SEPARAÇÃO ELETIVA/URGÊNCIA
-        const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE&size=20';
+        const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE,DOCUMENTACAO_EM_ANALISE&size=20';
         
         const filasEletivas = [
             { 

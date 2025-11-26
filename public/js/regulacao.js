@@ -144,46 +144,89 @@ async function carregarSLAEmTempoReal() {
         if (result.success) {
             container.innerHTML = '';
             
-            result.data.forEach(fila => {
+            // Criar container para a primeira linha (Eletivas)
+            const linhaEletivas = document.createElement('div');
+            linhaEletivas.className = 'rt-linha';
+            linhaEletivas.style.display = 'flex';
+            linhaEletivas.style.justifyContent = 'space-between';
+            linhaEletivas.style.marginBottom = '20px';
+            linhaEletivas.style.flexWrap = 'wrap';
+            
+            // Criar container para a segunda linha (Urgências)
+            const linhaUrgencias = document.createElement('div');
+            linhaUrgencias.className = 'rt-linha';
+            linhaUrgencias.style.display = 'flex';
+            linhaUrgencias.style.justifyContent = 'space-between';
+            linhaUrgencias.style.flexWrap = 'wrap';
+            
+            // Função para criar card
+            const criarCard = (fila) => {
                 const card = document.createElement('div');
                 card.className = `rt-card status-${fila.status}`;
+                card.style.flex = '1';
+                card.style.minWidth = '23%';
+                card.style.margin = '0 1%';
                 
-                const temAlerta = fila.critico24h > 0;
+                // Lógica de Alerta Separada
+                const temVencidas = fila.totalVencidas > 0;
+                const temProximas = fila.totalProximas > 0;
                 
-                // --- NOVA LÓGICA DE HTML DO TOOLTIP ---
-                let alertHtml = '<div style="height:34px"></div>'; // Espaço vazio se não tiver alerta
+                let alertHtml = '<div style="height:34px"></div>'; // Espaço vazio padrão
 
-                if (temAlerta) {
-                    // Monta a lista de números em HTML
-                    let listaHtml = '';
-                    if (fila.listaCriticos && fila.listaCriticos.length > 0) {
-                        listaHtml = fila.listaCriticos.map(num => 
-                            `<div class="rt-tooltip-item">${num}</div>`
-                        ).join('');
+                if (temVencidas || temProximas) {
+                    
+                    // 1. Define o Texto do Badge (Botãozinho colorido)
+                    let badgeLabel = '';
+                    let badgeClass = ''; // Para estilizar cor se quiser
+
+                    if (temVencidas && temProximas) {
+                        badgeLabel = `🚨 ${fila.totalVencidas} Vencidas | ⚠️ ${fila.totalProximas} Próx.`;
+                    } else if (temVencidas) {
+                        badgeLabel = `🚨 ${fila.totalVencidas} Guias Vencidas`;
                     } else {
-                        listaHtml = '<div class="rt-tooltip-item">Sem detalhes</div>';
+                        badgeLabel = `⚠️ ${fila.totalProximas} Próximas do Venc.`;
                     }
 
-                    // Estrutura: Wrapper -> Badge (visível) + Content (oculto até hover)
+                    // 2. Monta o Conteúdo do Tooltip (Separado)
+                    let tooltipContentHtml = '';
+
+                    // Seção de Vencidas (Vermelho)
+                    if (temVencidas) {
+                        const listaV = fila.listaVencidas.map(num => `<div class="rt-tooltip-item" style="color:#c62828;">${num}</div>`).join('');
+                        tooltipContentHtml += `
+                            <div style="margin-bottom:10px;">
+                                <strong style="color:#c62828; border-bottom:1px solid #ffd7d7;">JÁ VENCIDAS (${fila.totalVencidas})</strong>
+                                <div class="rt-tooltip-list">${listaV}</div>
+                            </div>
+                        `;
+                    }
+
+                    // Seção de Próximas (Laranja/Amarelo Escuro)
+                    if (temProximas) {
+                        const listaP = fila.listaProximas.map(num => `<div class="rt-tooltip-item" style="color:#d35400;">${num}</div>`).join('');
+                        tooltipContentHtml += `
+                            <div>
+                                <strong style="color:#d35400; border-bottom:1px solid #fdebd0;">VENCEM EM BREVE (${fila.totalProximas})</strong>
+                                <div class="rt-tooltip-list">${listaP}</div>
+                            </div>
+                        `;
+                    }
+
                     alertHtml = `
                         <div class="rt-alert-wrapper">
-                            <div class="rt-alert-badge">
-                                ⚠️ ${fila.critico24h} Próximas a Vencer
+                            <div class="rt-alert-badge" style="${temVencidas ? 'background:#ffebee; color:#c62828;' : 'background:#fff3e0; color:#e65100;'}">
+                                ${badgeLabel}
                             </div>
                             
-                            <div class="rt-tooltip-content">
-                                <strong>Guias Críticas (${fila.critico24h})</strong>
-                                <div class="rt-tooltip-list">
-                                    ${listaHtml}
-                                </div>
+                            <div class="rt-tooltip-content" style="width: 250px;">
+                                ${tooltipContentHtml}
                                 <div style="font-size:0.7em; color:#999; margin-top:5px; text-align:center;">
-                                    Selecione para copiar
+                                    Copie os números acima
                                 </div>
                             </div>
                         </div>
                     `;
                 }
-                // --------------------------------------
 
                 card.innerHTML = `
                     <div class="rt-title">${fila.label}</div>
@@ -200,8 +243,22 @@ async function carregarSLAEmTempoReal() {
                     ${alertHtml}
                 `;
                 
-                container.appendChild(card);
+                return card;
+            };
+            
+            // Adicionar cards eletivos na primeira linha
+            result.data.eletivas.forEach(fila => {
+                linhaEletivas.appendChild(criarCard(fila));
             });
+            
+            // Adicionar cards urgências na segunda linha
+            result.data.urgencias.forEach(fila => {
+                linhaUrgencias.appendChild(criarCard(fila));
+            });
+            
+            // Adicionar as linhas ao container principal
+            container.appendChild(linhaEletivas);
+            container.appendChild(linhaUrgencias);
         }
     } catch (error) {
         console.error('Erro no monitoramento realtime:', error);

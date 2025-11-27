@@ -38,14 +38,13 @@ router.get('/sla-tempo-real', async (req, res) => {
         }
 
         // 2. CONFIGURAÇÃO DAS FILAS COM SEPARAÇÃO ELETIVA/URGÊNCIA
-        // Adicionando filtro de Prioridade para tentar separar urgente/eletiva, quando possível
         const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE,DOCUMENTACAO_EM_ANALISE&size=20';
         
         const filasEletivas = [
             { 
                 id: 'INTERNACAO_ELETIVA', 
                 label: 'Internação Eletiva', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO&prioridade=ELETIVA`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO`,
                 tipo: 'eletiva',
                 prazoHoras: 21 * 24,
                 limiteAlertaHoras: 24
@@ -53,7 +52,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'SADT_ELETIVA', 
                 label: 'SP/SADT Eletiva', 
-                url: `${baseURL}&tipoDeGuia=SP_SADT&prioridade=ELETIVA`,
+                url: `${baseURL}&tipoDeGuia=SP_SADT`,
                 tipo: 'eletiva',
                 prazoHoras: 10 * 24,
                 limiteAlertaHoras: 24
@@ -61,17 +60,17 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'PRORROGACAO_ELETIVA', 
                 label: 'Prorrogação Eletiva', 
-                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO&prioridade=ELETIVA`,
+                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
                 tipo: 'eletiva',
-                prazoHoras: 24, 
-                limiteAlertaHoras: 4 
+                prazoHoras: 24, // CORREÇÃO: 24h
+                limiteAlertaHoras: 4 // CORREÇÃO: alerta 4h antes
             },
             { 
                 id: 'OPME_ELETIVA', 
                 label: 'OPME Eletiva', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME&prioridade=ELETIVA`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
                 tipo: 'eletiva',
-                prazoHoras: 21 * 24,
+                prazoHoras: 21 * 24, 
                 limiteAlertaHoras: 24
             }
         ];
@@ -80,7 +79,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'INTERNACAO_URGENCIA', 
                 label: 'Internação Urgência', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO&prioridade=URGENCIA`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO`,
                 tipo: 'urgencia', 
                 prazoHoras: 6,
                 limiteAlertaHoras: 1
@@ -88,7 +87,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'SADT_URGENCIA', 
                 label: 'SP/SADT Urgência', 
-                url: `${baseURL}&tipoDeGuia=SP_SADT&prioridade=URGENCIA`,
+                url: `${baseURL}&tipoDeGuia=SP_SADT`,
                 tipo: 'urgencia',
                 prazoHoras: 6,
                 limiteAlertaHoras: 1
@@ -96,17 +95,17 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'PRORROGACAO_URGENCIA', 
                 label: 'Prorrogação Urgência', 
-                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO&prioridade=URGENCIA`,
+                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
                 tipo: 'urgencia',
-                prazoHoras: 24,
-                limiteAlertaHoras: 4
+                prazoHoras: 24, // CORREÇÃO: 24h
+                limiteAlertaHoras: 4 // CORREÇÃO: alerta 4h antes
             },
             { 
                 id: 'OPME_URGENCIA', 
                 label: 'OPME Urgência', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME&prioridade=URGENCIA`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
                 tipo: 'urgencia',
-                prazoHoras: 6,
+                prazoHoras: 6, 
                 limiteAlertaHoras: 1
             }
         ];
@@ -168,14 +167,46 @@ router.get('/sla-tempo-real', async (req, res) => {
                 
                 if (!statusPermitidos.includes(status)) return false;
                 
-                const filaGuia = guia.fila || '';
-                const isUrgenciaAPI = filaGuia.toLowerCase().includes('urgência') || 
-                                  filaGuia.toLowerCase().includes('emergência') ||
-                                  filaGuia.toLowerCase().includes('urgencia');
-                if (fila.tipo === 'urgencia' && !isUrgenciaAPI) return false;
-                if (fila.tipo === 'eletiva' && isUrgenciaAPI) return false;
+                // --- AJUSTE NA LÓGICA DE FILTRAGEM POR TIPO DE PRIORIDADE/URGÊNCIA (OPME) ---
                 
-                return true;
+                // Se a guia NÃO for OPME, usa a lógica de fila (mais segura para outros tipos).
+                if (!fila.id.includes('OPME')) {
+                    const filaGuia = guia.fila || '';
+                    const isUrgencia = filaGuia.toLowerCase().includes('urgência') || 
+                                       filaGuia.toLowerCase().includes('emergência') ||
+                                       filaGuia.toLowerCase().includes('urgencia');
+                    
+                    if (fila.tipo === 'urgencia' && !isUrgencia) return false;
+                    if (fila.tipo === 'eletiva' && isUrgencia) return false;
+                    
+                    return true;
+                }
+
+                // Se for OPME, OBRIGATORIAMENTE classifica pelo prazo de SLA retornado pela API.
+                // Isso resolve a falha de diferenciação Urgência/Eletiva para OPME.
+                const dataSolicitacaoRaw = guia.dataHoraSolicitacao || guia.dataSolicitacao;
+                const dataVencimentoRaw = guia.dataVencimentoSla || guia.dataVencimento;
+                
+                if (!dataSolicitacaoRaw || !dataVencimentoRaw) {
+                    // Se não tiver dados de data/SLA da API, não podemos classificar. Ignora a guia para esta fila.
+                    // Para evitar falsos negativos na contagem final, pode-se retornar true e deixar a guia ser contada no SLA (dentroPrazo++ no final), mas sem risco de vencimento.
+                    return true;
+                }
+                
+                const dataSolicitacao = new Date(dataSolicitacaoRaw);
+                const dataVencimento = new Date(dataVencimentoRaw);
+                
+                // Calcula o prazo total em horas (Ex: 6h para Urgência, ~700h para Eletiva)
+                const prazoTotalHoras = (dataVencimento - dataSolicitacao) / (1000 * 60 * 60);
+
+                // Critério: Urgência tem prazo total inferior a 7 horas.
+                const isOPMEUrgencia = prazoTotalHoras < 7; 
+                
+                if (fila.tipo === 'urgencia') {
+                    return isOPMEUrgencia;
+                } else { // fila.tipo === 'eletiva'
+                    return !isOPMEUrgencia;
+                }
             });
 
             let total = guiasValidas.length;
@@ -188,13 +219,12 @@ router.get('/sla-tempo-real', async (req, res) => {
             guiasValidas.forEach(guia => {
                 let dataVencimento = null;
                 
-                // 1. Prioriza o vencimento fornecido pela API (CORREÇÃO OPME)
+                // 1. Prioriza o vencimento fornecido pela API
                 if (guia.dataVencimentoSla || guia.dataVencimento) {
                     dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
                 } 
-                // 2. Se a API não forneceu o vencimento, calcula manualmente usando a regra da fila
-                else if (guia.dataSolicitacao && fila.prazoHoras) {
-                    // Esta lógica só é usada se a API não fornecer a data de vencimento.
+                // 2. Fallback APENAS se NÃO for OPME e a data de vencimento estiver ausente.
+                else if (guia.dataSolicitacao && fila.prazoHoras && !fila.id.includes('OPME')) {
                     dataVencimento = new Date(guia.dataSolicitacao);
                     dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
                 }
@@ -205,7 +235,10 @@ router.get('/sla-tempo-real', async (req, res) => {
                     const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
 
                     if (diffMs > 0) {
+                        // AINDA NO PRAZO
                         dentroPrazo++;
+                        
+                        // Verifica se está Próxima de Vencer (Alerta Amarelo)
                         if (diffHoras <= fila.limiteAlertaHoras) {
                             totalProximas++;
                             listaProximas.push(numeroGuia);
@@ -216,6 +249,7 @@ router.get('/sla-tempo-real', async (req, res) => {
                         listaVencidas.push(numeroGuia);
                     }
                 } else {
+                    // Se não há data de vencimento (nem da API, nem calculada via fallback)
                     dentroPrazo++;
                 }
             });
@@ -282,9 +316,13 @@ router.get('/guias-negadas', async (req, res) => {
             ];
         }
 
-        // --- OTIMIZAÇÃO CRÍTICA AQUI ---
-        const guiasEncontradas = await guiasCollection.find(query)
-            .project({
+        // --- CORREÇÃO: Usar Aggregation Pipeline para garantir que allowDiskUse funcione no sort (Erro de Memória) ---
+        const pipeline = [
+            // 1. Filtrar pelos critérios (datas, pesquisa, status)
+            { $match: query },
+            
+            // 2. Projetar apenas os campos necessários (otimização)
+            { $project: {
                 autorizacaoGuia: 1,
                 numeroGuia: 1,
                 prestador: 1,
@@ -293,10 +331,16 @@ router.get('/guias-negadas', async (req, res) => {
                 statusRegulacao: 1,
                 itensGuia: 1,
                 _id: 1
-            })
-            .sort({ dataRegulacao: -1 }) 
-            .allowDiskUse(true)
+            }},
+            
+            // 3. Ordenar (O sort original que estava dando erro de memória)
+            { $sort: { dataRegulacao: -1 } }
+        ];
+
+        const guiasEncontradas = await guiasCollection.aggregate(pipeline)
+            .allowDiskUse(true) // <--- O allowDiskUse é aplicado aqui
             .toArray();
+        // -----------------------------------------------------------------------------------------
         
         const resultado = [];
         
@@ -627,7 +671,5 @@ router.get('/sla-desempenho', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-
-module.exports = router;
 
 module.exports = router;

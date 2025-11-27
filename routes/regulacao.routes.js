@@ -38,13 +38,14 @@ router.get('/sla-tempo-real', async (req, res) => {
         }
 
         // 2. CONFIGURAÇÃO DAS FILAS COM SEPARAÇÃO ELETIVA/URGÊNCIA
+        // Adicionando filtro de Prioridade para tentar separar urgente/eletiva, quando possível
         const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE,DOCUMENTACAO_EM_ANALISE&size=20';
         
         const filasEletivas = [
             { 
                 id: 'INTERNACAO_ELETIVA', 
                 label: 'Internação Eletiva', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO&prioridade=ELETIVA`,
                 tipo: 'eletiva',
                 prazoHoras: 21 * 24,
                 limiteAlertaHoras: 24
@@ -52,7 +53,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'SADT_ELETIVA', 
                 label: 'SP/SADT Eletiva', 
-                url: `${baseURL}&tipoDeGuia=SP_SADT`,
+                url: `${baseURL}&tipoDeGuia=SP_SADT&prioridade=ELETIVA`,
                 tipo: 'eletiva',
                 prazoHoras: 10 * 24,
                 limiteAlertaHoras: 24
@@ -60,15 +61,15 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'PRORROGACAO_ELETIVA', 
                 label: 'Prorrogação Eletiva', 
-                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
+                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO&prioridade=ELETIVA`,
                 tipo: 'eletiva',
-                prazoHoras: 21 * 24,
-                limiteAlertaHoras: 24
+                prazoHoras: 24, 
+                limiteAlertaHoras: 4 
             },
             { 
                 id: 'OPME_ELETIVA', 
                 label: 'OPME Eletiva', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME&prioridade=ELETIVA`,
                 tipo: 'eletiva',
                 prazoHoras: 21 * 24,
                 limiteAlertaHoras: 24
@@ -79,7 +80,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'INTERNACAO_URGENCIA', 
                 label: 'Internação Urgência', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_INTERNACAO&prioridade=URGENCIA`,
                 tipo: 'urgencia', 
                 prazoHoras: 6,
                 limiteAlertaHoras: 1
@@ -87,7 +88,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'SADT_URGENCIA', 
                 label: 'SP/SADT Urgência', 
-                url: `${baseURL}&tipoDeGuia=SP_SADT`,
+                url: `${baseURL}&tipoDeGuia=SP_SADT&prioridade=URGENCIA`,
                 tipo: 'urgencia',
                 prazoHoras: 6,
                 limiteAlertaHoras: 1
@@ -95,15 +96,15 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'PRORROGACAO_URGENCIA', 
                 label: 'Prorrogação Urgência', 
-                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
+                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO&prioridade=URGENCIA`,
                 tipo: 'urgencia',
-                prazoHoras: 6,
-                limiteAlertaHoras: 1
+                prazoHoras: 24,
+                limiteAlertaHoras: 4
             },
             { 
                 id: 'OPME_URGENCIA', 
                 label: 'OPME Urgência', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME&prioridade=URGENCIA`,
                 tipo: 'urgencia',
                 prazoHoras: 6,
                 limiteAlertaHoras: 1
@@ -168,12 +169,11 @@ router.get('/sla-tempo-real', async (req, res) => {
                 if (!statusPermitidos.includes(status)) return false;
                 
                 const filaGuia = guia.fila || '';
-                const isUrgencia = filaGuia.toLowerCase().includes('urgência') || 
+                const isUrgenciaAPI = filaGuia.toLowerCase().includes('urgência') || 
                                   filaGuia.toLowerCase().includes('emergência') ||
                                   filaGuia.toLowerCase().includes('urgencia');
-                
-                if (fila.tipo === 'urgencia' && !isUrgencia) return false;
-                if (fila.tipo === 'eletiva' && isUrgencia) return false;
+                if (fila.tipo === 'urgencia' && !isUrgenciaAPI) return false;
+                if (fila.tipo === 'eletiva' && isUrgenciaAPI) return false;
                 
                 return true;
             });
@@ -187,9 +187,14 @@ router.get('/sla-tempo-real', async (req, res) => {
 
             guiasValidas.forEach(guia => {
                 let dataVencimento = null;
+                
+                // 1. Prioriza o vencimento fornecido pela API (CORREÇÃO OPME)
                 if (guia.dataVencimentoSla || guia.dataVencimento) {
                     dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
-                } else if (guia.dataSolicitacao) {
+                } 
+                // 2. Se a API não forneceu o vencimento, calcula manualmente usando a regra da fila
+                else if (guia.dataSolicitacao && fila.prazoHoras) {
+                    // Esta lógica só é usada se a API não fornecer a data de vencimento.
                     dataVencimento = new Date(guia.dataSolicitacao);
                     dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
                 }
@@ -200,10 +205,7 @@ router.get('/sla-tempo-real', async (req, res) => {
                     const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
 
                     if (diffMs > 0) {
-                        // AINDA NO PRAZO
                         dentroPrazo++;
-                        
-                        // Verifica se está Próxima de Vencer (Alerta Amarelo)
                         if (diffHoras <= fila.limiteAlertaHoras) {
                             totalProximas++;
                             listaProximas.push(numeroGuia);
@@ -213,6 +215,8 @@ router.get('/sla-tempo-real', async (req, res) => {
                         totalVencidas++;
                         listaVencidas.push(numeroGuia);
                     }
+                } else {
+                    dentroPrazo++;
                 }
             });
 
@@ -274,13 +278,24 @@ router.get('/guias-negadas', async (req, res) => {
             query.$or = [
                 { autorizacaoGuia: new RegExp(search, 'i') }, 
                 { "itensGuia.codigo": new RegExp(search, 'i') },
-                { "prestador": new RegExp(search, 'i') }
+                { "prestador": new RegExp(search, 'i') } 
             ];
         }
 
+        // --- OTIMIZAÇÃO CRÍTICA AQUI ---
         const guiasEncontradas = await guiasCollection.find(query)
-            .sort({ dataRegulacao: -1 })
-            .limit(2000) 
+            .project({
+                autorizacaoGuia: 1,
+                numeroGuia: 1,
+                prestador: 1,
+                dataRegulacao: 1,
+                dataSolicitacao: 1,
+                statusRegulacao: 1,
+                itensGuia: 1,
+                _id: 1
+            })
+            .sort({ dataRegulacao: -1 }) 
+            .allowDiskUse(true)
             .toArray();
         
         const resultado = [];
@@ -323,6 +338,7 @@ router.get('/guias-negadas', async (req, res) => {
             }
         }
         
+        // Ordena pelo valor total negado (Maior -> Menor)
         resultado.sort((a, b) => b.totalNegado - a.totalNegado);
         
         res.json({ success: true, data: resultado, total: resultado.length });

@@ -82,7 +82,8 @@ async function carregarDados() {
         const guiasResult = await guiasResponse.json(); 
 
         if (guiasResult.success) {
-            guiasData = guiasResult.data;
+            guiasData = guiasResult.data.sort((a, b) => b.totalNegado - a.totalNegado);
+            
             document.getElementById('guias-titulo').textContent = `Guias com Negativa (${guiasResult.total} Encontradas)`;
             currentPage = 1;
             renderizarTabela(); 
@@ -1313,10 +1314,15 @@ function filtrarGuias() {
     const termoBusca = document.getElementById('search-guia').value.toLowerCase().trim();
     
     const guiasFiltradas = guiasData.filter(guia => {
+        
         const numeroGuia = guia.numeroGuiaOperadora ? String(guia.numeroGuiaOperadora).toLowerCase() : '';
         
-        return numeroGuia.includes(termoBusca);
+        const prestador = guia.prestadorNome ? String(guia.prestadorNome).toLowerCase() : '';
+        
+        return numeroGuia.includes(termoBusca) || prestador.includes(termoBusca);
     });
+    guiasFiltradas.sort((a, b) => b.totalNegado - a.totalNegado);
+
     renderizarTabela(guiasFiltradas);
     criarPaginacao(guiasFiltradas);
     
@@ -1366,9 +1372,12 @@ function exportarParaCSV() {
 
 // Define as datas padrão
 const today = new Date();
+const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1); 
+
 const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
 const formatDate = (d) => d.toISOString().split('T')[0];
-document.getElementById('start-date-filter').value = formatDate(lastMonth);
+
+document.getElementById('start-date-filter').value = formatDate(currentMonthStart);
 document.getElementById('end-date-filter').value = formatDate(today);
 
 // Carrega os dados iniciais

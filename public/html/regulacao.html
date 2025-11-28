@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Regulação (SLA e Negativas)</title>
+    <title>Dashboard - Regulação (SLA e Glosa)</title>
     <link rel="stylesheet" href="../css/regulacao.css"> 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -51,7 +51,7 @@
                 <input type="date" id="end-date-filter" class="filter-input">
             </div>
             <button class="btn-refresh" id="refresh-btn">🔄 Atualizar</button>
-            <button class="btn-export" id="export-btn">⬇️ Exportar CSV</button>
+            <button class="btn-export" id="export-btn">⬇️ Exportar CSV (Glosas)</button>
         </div>
         
         <!-- Cards principais de SLA -->
@@ -150,13 +150,18 @@
                 </div>
             </div>
         
-        <!-- Análise de Negativas -->
+        <!-- Análise de Glosas -->
         <div class="card" style="grid-column: 1 / 3; margin-top: 40px;">
-            <h3 style="color: var(--maida-rosa); font-size: 1.5em;">Análise de Negativas</h3>
+            <h3 style="color: var(--maida-rosa); font-size: 1.5em;">Análise de Glosas</h3>
         </div>
         <br>
         
+        <!-- Cards de negativas movidos para perto dos gráficos de glosas -->
         <div class="metricas-cards">
+            <div class="metrica-card bg-vermelho">
+                <h3>Total Geral Autorizado</h3>
+                <div class="metrica-value" id="maior-negativa-unica">R$ 0,00</div>
+            </div>
             <div class="metrica-card bg-azul">
                 <h3>Total Geral Negado</h3>
                 <div class="metrica-value" id="total-negado-geral">R$ 0,00</div>
@@ -169,25 +174,23 @@
                 <h3>Guias com Negativa</h3>
                 <div class="metrica-value" id="quantidade-guias">0</div>
             </div>
-            <div class="metrica-card bg-vermelho">
-                <h3>Maior Negativa Única</h3>
-                <div class="metrica-value" id="maior-negativa-unica">R$ 0,00</div>
-            </div>
+
         </div>
         
         <div class="dashboard-grid">
             <div class="card" style="grid-column: 1 / 3;">
-                <h3>Distribuição por Tipo de Guia Negativas</h3>
+                <h3>Distribuição por Tipo de Guia (Glosa)</h3>
                 <div id="chart-wrapper-2" class="chart-wrapper chart-wrapper-full">
                     <canvas id="grafico-tipos-guia"></canvas>
                 </div>
             </div>
         </div>  
         
-        <!-- Gráficos de Negativas -->
+        <!-- Gráficos de glosas -->
         <div class="dashboard-grid">
+            <!-- Top 10 Prestadores Mais Glosados ocupa toda a coluna -->
             <div class="card" style="grid-column: 1 / 3;">
-                <h3>Top 10 Prestadores Mais Ofensivos</h3>
+                <h3>Top 10 Prestadores Mais Glosados</h3>
                 <div id="chart-wrapper-1" class="chart-wrapper chart-wrapper-full">
                     <canvas id="grafico-top-prestadores"></canvas>
                 </div>
@@ -211,7 +214,7 @@
                 <div class="search-container">
                     <div class="filter-group">
                         <label for="search-guia">Buscar por Nº Guia:</label>
-                        <input type="text" id="search-guia" placeholder="Número da guia..." class="filter-input">
+                        <input type="text" id="search-guia" placeholder="Buscar por Guia ou Prestador..." class="filter-input" style="width: 300px;">
                     </div>
                 </div>
             </div>

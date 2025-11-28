@@ -316,31 +316,8 @@ router.get('/guias-negadas', async (req, res) => {
             ];
         }
 
-        // --- CORREÇÃO: Usar Aggregation Pipeline para garantir que allowDiskUse funcione no sort (Erro de Memória) ---
-        const pipeline = [
-            // 1. Filtrar pelos critérios (datas, pesquisa, status)
-            { $match: query },
-            
-            // 2. Projetar apenas os campos necessários (otimização)
-            { $project: {
-                autorizacaoGuia: 1,
-                numeroGuia: 1,
-                prestador: 1,
-                dataRegulacao: 1,
-                dataSolicitacao: 1,
-                statusRegulacao: 1,
-                itensGuia: 1,
-                _id: 1
-            }},
-            
-            // 3. Ordenar (O sort original que estava dando erro de memória)
-            { $sort: { dataRegulacao: -1 } }
-        ];
-
-        const guiasEncontradas = await guiasCollection.aggregate(pipeline)
-            .allowDiskUse(true) // <--- O allowDiskUse é aplicado aqui
-            .toArray();
-        // -----------------------------------------------------------------------------------------
+        // Busca as guias com os filtros aplicados
+        const guiasEncontradas = await guiasCollection.find(query).toArray();
         
         const resultado = [];
         
@@ -382,7 +359,7 @@ router.get('/guias-negadas', async (req, res) => {
             }
         }
         
-        // Ordena pelo valor total negado (Maior -> Menor)
+        // CORREÇÃO: Ordena pelo valor total negado (Maior -> Menor)
         resultado.sort((a, b) => b.totalNegado - a.totalNegado);
         
         res.json({ success: true, data: resultado, total: resultado.length });
@@ -417,6 +394,7 @@ router.get('/estatisticas', async (req, res) => {
         const guiasEncontradas = await guiasCollection.find(baseMatch).toArray();
         
         let totalGeralNegado = 0;
+        let totalGeralAutorizado = 0; 
         let quantidadeGuias = 0;
         let maiorNegativa = 0;
         const procedimentosMap = new Map();
@@ -425,10 +403,16 @@ router.get('/estatisticas', async (req, res) => {
         
         for (const guia of guiasEncontradas) {
             let totalNegadoGuia = 0;
+            let totalAutorizadoGuia = 0; 
             let temNegativa = false;
             
             for (const item of guia.itensGuia || []) {
                 const valorNegado = parseFloat(item.valorNegado || 0);
+                const valorUnitario = parseFloat(item.valorUnitarioProcedimento || 0);
+                const quantAutorizada = parseFloat(item.quantAutorizada || 0);
+                
+                const valorAutorizadoItem = valorUnitario * quantAutorizada;
+                totalAutorizadoGuia += valorAutorizadoItem;
 
                 if (valorNegado > 0.01) {
                     totalGeralNegado += valorNegado;
@@ -448,6 +432,8 @@ router.get('/estatisticas', async (req, res) => {
                 }
             }
             
+            totalGeralAutorizado += totalAutorizadoGuia;
+            
             if (temNegativa) {
                 quantidadeGuias++;
                 maiorNegativa = Math.max(maiorNegativa, totalNegadoGuia);
@@ -466,7 +452,7 @@ router.get('/estatisticas', async (req, res) => {
             }
         }
         
-        // Processamentos Top 10 e ordenações (código mantido igual ao original)
+        // Processamentos Top 10 e ordenações
         const topNegados = Array.from(procedimentosMap.entries())
             .map(([codigo, data]) => ({ codigo, ...data }))
             .sort((a, b) => b.totalNegado - a.totalNegado).slice(0, 10);
@@ -483,7 +469,16 @@ router.get('/estatisticas', async (req, res) => {
 
         res.json({
             success: true,
-            data: { totalGeralNegado, quantidadeGuias, valorMedio, maiorNegativa, topNegados, topPrestadores, topTiposGuia }
+            data: { 
+                totalGeralNegado, 
+                totalGeralAutorizado, 
+                quantidadeGuias, 
+                valorMedio, 
+                maiorNegativa, 
+                topNegados, 
+                topPrestadores, 
+                topTiposGuia 
+            }
         });
         
     } catch (error) {

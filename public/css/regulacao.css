@@ -175,10 +175,10 @@ header h1 {
     font-weight: bold;
 }
 
-.bg-azul { background: var(--maida-azul); }
-.bg-rosa { background: var(--maida-rosa); }
-.bg-amarelo { background: var(--maida-amarelo); color: var(--maida-cinza-escuro); }
-.bg-vermelho { background: var(--maida-cinza-escuro); }
+.bg-azul { background: var(--maida-rosa); }
+.bg-rosa { background: var(--maida-amarelo); color: var(--maida-cinza-escuro); }
+.bg-amarelo { background: var(--maida-cinza-escuro); }
+.bg-vermelho { background: var(--maida-azul); }
 
 /* FILTROS */
 .filters {

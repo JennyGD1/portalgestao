@@ -54,7 +54,19 @@ function createUrlParams() {
 
 async function carregarDados() {
     showLoading();
-    const params = createUrlParams();
+    
+    // Busca os valores atuais dos filtros
+    const search = document.getElementById('search-guia').value;
+    const startDate = document.getElementById('start-date-filter').value;
+    const endDate = document.getElementById('end-date-filter').value;
+
+    // Cria os parâmetros URL com os filtros atuais
+    const searchParams = new URLSearchParams();
+    if (search) searchParams.append('search', search);
+    if (startDate) searchParams.append('startDate', startDate);
+    if (endDate) searchParams.append('endDate', endDate);
+    
+    const params = searchParams.toString();
 
     try {
         // 1. Busca estatísticas
@@ -67,7 +79,7 @@ async function carregarDados() {
             document.getElementById('total-negado-geral').textContent = formatCurrency(stats.totalGeralNegado);
             document.getElementById('valor-medio-negado').textContent = formatCurrency(stats.valorMedio);
             document.getElementById('quantidade-guias').textContent = stats.quantidadeGuias;
-            document.getElementById('maior-negativa-unica').textContent = formatCurrency(stats.maiorNegativa);
+            document.getElementById('maior-negativa-unica').textContent = formatCurrency(stats.totalGeralAutorizado);
             
             criarGraficos(stats);
             
@@ -76,14 +88,12 @@ async function carregarDados() {
             criarGraficos({ topNegados: [], topPrestadores: [], topTiposGuia: [], totalGeralNegado: 0 });
         }
 
-
         // 2. Busca guias detalhadas
         const guiasResponse = await fetch(`${API_BASE_URL}/guias-negadas?${params}`);
         const guiasResult = await guiasResponse.json(); 
 
         if (guiasResult.success) {
-            guiasData = guiasResult.data.sort((a, b) => b.totalNegado - a.totalNegado);
-            
+            guiasData = guiasResult.data;
             document.getElementById('guias-titulo').textContent = `Guias com Negativa (${guiasResult.total} Encontradas)`;
             currentPage = 1;
             renderizarTabela(); 
@@ -92,6 +102,7 @@ async function carregarDados() {
             console.error('Erro nas guias:', guiasResult.error);
         }
 
+        // 3. Busca dados de SLA
         try {
             const slaResponse = await fetch(`${API_BASE_URL}/sla-desempenho?${params}`);
             const slaResult = await slaResponse.json();
@@ -125,8 +136,7 @@ async function carregarDados() {
     } finally {
         hideLoading();
     }
-}    
-
+}
 // --------------------------------------------------------------------------------
 // FUNÇÃO: MONITORAMENTO EM TEMPO REAL 
 // --------------------------------------------------------------------------------
@@ -1314,14 +1324,11 @@ function filtrarGuias() {
     const termoBusca = document.getElementById('search-guia').value.toLowerCase().trim();
     
     const guiasFiltradas = guiasData.filter(guia => {
-        
         const numeroGuia = guia.numeroGuiaOperadora ? String(guia.numeroGuiaOperadora).toLowerCase() : '';
-        
         const prestador = guia.prestadorNome ? String(guia.prestadorNome).toLowerCase() : '';
         
         return numeroGuia.includes(termoBusca) || prestador.includes(termoBusca);
     });
-    guiasFiltradas.sort((a, b) => b.totalNegado - a.totalNegado);
 
     renderizarTabela(guiasFiltradas);
     criarPaginacao(guiasFiltradas);
@@ -1384,8 +1391,6 @@ document.getElementById('end-date-filter').value = formatDate(today);
 carregarDados();
 
 // Adiciona os listeners aos botões e filtros
-document.getElementById('start-date-filter').addEventListener('change', carregarDados);
-document.getElementById('end-date-filter').addEventListener('change', carregarDados);
 document.getElementById('export-btn').addEventListener('click', exportarParaCSV);
 document.getElementById('refresh-btn').addEventListener('click', carregarDados);
 

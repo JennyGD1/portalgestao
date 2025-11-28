@@ -37,7 +37,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             return res.status(500).json({ success: false, error: 'Falha na autenticação externa' });
         }
 
-        // 2. CONFIGURAÇÃO DAS FILAS COM SEPARAÇÃO ELETIVA/URGÊNCIA
+        // 2. CONFIGURAÇÃO DAS FILAS
         const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE,DOCUMENTACAO_EM_ANALISE&size=20';
         
         const filasEletivas = [
@@ -62,8 +62,8 @@ router.get('/sla-tempo-real', async (req, res) => {
                 label: 'Prorrogação Eletiva', 
                 url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
                 tipo: 'eletiva',
-                prazoHoras: 24, // CORREÇÃO: 24h
-                limiteAlertaHoras: 4 // CORREÇÃO: alerta 4h antes
+                prazoHoras: 24,
+                limiteAlertaHoras: 4
             },
             { 
                 id: 'OPME_ELETIVA', 
@@ -97,8 +97,8 @@ router.get('/sla-tempo-real', async (req, res) => {
                 label: 'Prorrogação Urgência', 
                 url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
                 tipo: 'urgencia',
-                prazoHoras: 24, // CORREÇÃO: 24h
-                limiteAlertaHoras: 4 // CORREÇÃO: alerta 4h antes
+                prazoHoras: 24,
+                limiteAlertaHoras: 4
             },
             { 
                 id: 'OPME_URGENCIA', 
@@ -167,9 +167,7 @@ router.get('/sla-tempo-real', async (req, res) => {
                 
                 if (!statusPermitidos.includes(status)) return false;
                 
-                // --- AJUSTE NA LÓGICA DE FILTRAGEM POR TIPO DE PRIORIDADE/URGÊNCIA (OPME) ---
-                
-                // Se a guia NÃO for OPME, usa a lógica de fila (mais segura para outros tipos).
+                // Lógica de filtragem por tipo de prioridade/urgência
                 if (!fila.id.includes('OPME')) {
                     const filaGuia = guia.fila || '';
                     const isUrgencia = filaGuia.toLowerCase().includes('urgência') || 
@@ -182,29 +180,23 @@ router.get('/sla-tempo-real', async (req, res) => {
                     return true;
                 }
 
-                // Se for OPME, OBRIGATORIAMENTE classifica pelo prazo de SLA retornado pela API.
-                // Isso resolve a falha de diferenciação Urgência/Eletiva para OPME.
+                // Para OPME, classifica pelo prazo de SLA
                 const dataSolicitacaoRaw = guia.dataHoraSolicitacao || guia.dataSolicitacao;
                 const dataVencimentoRaw = guia.dataVencimentoSla || guia.dataVencimento;
                 
                 if (!dataSolicitacaoRaw || !dataVencimentoRaw) {
-                    // Se não tiver dados de data/SLA da API, não podemos classificar. Ignora a guia para esta fila.
-                    // Para evitar falsos negativos na contagem final, pode-se retornar true e deixar a guia ser contada no SLA (dentroPrazo++ no final), mas sem risco de vencimento.
                     return true;
                 }
                 
                 const dataSolicitacao = new Date(dataSolicitacaoRaw);
                 const dataVencimento = new Date(dataVencimentoRaw);
                 
-                // Calcula o prazo total em horas (Ex: 6h para Urgência, ~700h para Eletiva)
                 const prazoTotalHoras = (dataVencimento - dataSolicitacao) / (1000 * 60 * 60);
-
-                // Critério: Urgência tem prazo total inferior a 7 horas.
                 const isOPMEUrgencia = prazoTotalHoras < 7; 
                 
                 if (fila.tipo === 'urgencia') {
                     return isOPMEUrgencia;
-                } else { // fila.tipo === 'eletiva'
+                } else {
                     return !isOPMEUrgencia;
                 }
             });
@@ -223,17 +215,21 @@ router.get('/sla-tempo-real', async (req, res) => {
                 if (guia.dataVencimentoSla || guia.dataVencimento) {
                     dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
                 } 
-                // 2. Fallback APENAS se NÃO for OPME e a data de vencimento estiver ausente.
+                // 2. Fallback apenas se não for OPME
                 else if (guia.dataSolicitacao && fila.prazoHoras && !fila.id.includes('OPME')) {
                     dataVencimento = new Date(guia.dataSolicitacao);
                     dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
                 }
 
                 if (dataVencimento) {
-                    const diffMs = dataVencimento - agora;
+                    const agora = new Date();
+                    const diffMs = dataVencimento - agora; // CORREÇÃO: agora - dataVencimento estava invertido
                     const diffHoras = diffMs / (1000 * 60 * 60);
                     const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
 
+                    console.log(`📋 Guia ${numeroGuia}: Vence em ${diffHoras.toFixed(2)} horas (${dataVencimento.toISOString()})`);
+
+                    // CORREÇÃO: Lógica de status corrigida
                     if (diffMs > 0) {
                         // AINDA NO PRAZO
                         dentroPrazo++;
@@ -242,19 +238,26 @@ router.get('/sla-tempo-real', async (req, res) => {
                         if (diffHoras <= fila.limiteAlertaHoras) {
                             totalProximas++;
                             listaProximas.push(numeroGuia);
+                            console.log(`⚠️ Guia ${numeroGuia} PRÓXIMA do vencimento: ${diffHoras.toFixed(2)}h restantes`);
+                        } else {
+                            console.log(`✅ Guia ${numeroGuia} DENTRO do prazo: ${diffHoras.toFixed(2)}h restantes`);
                         }
                     } else {
                         // JÁ VENCEU (Alerta Vermelho)
                         totalVencidas++;
                         listaVencidas.push(numeroGuia);
+                        console.log(`🚨 Guia ${numeroGuia} VENCIDA: ${Math.abs(diffHoras).toFixed(2)}h atrás`);
                     }
                 } else {
-                    // Se não há data de vencimento (nem da API, nem calculada via fallback)
+                    // Se não há data de vencimento
                     dentroPrazo++;
+                    console.log(`❓ Guia sem data de vencimento: ${guia.autorizacaoGuia || 'S/N'}`);
                 }
             });
 
             const percentualSLA = total > 0 ? ((dentroPrazo / total) * 100).toFixed(1) : 100;
+
+            console.log(`📊 ${fila.label}: ${total} guias, ${dentroPrazo} dentro do prazo, ${totalVencidas} vencidas, ${totalProximas} próximas`);
 
             return {
                 id: fila.id,

@@ -211,40 +211,39 @@ router.get('/sla-tempo-real', async (req, res) => {
             guiasValidas.forEach(guia => {
                 const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
                 
-                // --- MUDANÇA 3: Definição de Vencida pela API ---
-                // Verifica se a API diz explicitamente que está atrasada
                 const apiDizQueEstaAtrasada = guia.atrasada === true || 
                                               (guia.situacaoSla && String(guia.situacaoSla).includes('ATRASO'));
 
                 if (apiDizQueEstaAtrasada) {
-                    // VERMELHO: A API disse que venceu
                     totalVencidas++;
                     listaVencidas.push(numeroGuia);
                 } else {
-                    // Se a API diz que NÃO venceu, verificamos se está PRÓXIMA (Amarelo)
-                    let dataVencimento = null;
+                    if (fila.id === 'PRORROGACAO') {
+                        dentroPrazo++; 
+                    } else {
 
-                    if (guia.dataVencimentoSla || guia.dataVencimento) {
-                        dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
-                    } else if (guia.dataSolicitacao && fila.prazoHoras) {
-                        dataVencimento = new Date(guia.dataSolicitacao);
-                        dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
-                    }
+                        let dataVencimento = null;
 
-                    if (dataVencimento) {
-                        const agora = new Date();
-                        const diffMs = dataVencimento - agora;
-                        // const diffHoras = diffMs / (1000 * 60 * 60);
+                        if (guia.dataVencimentoSla || guia.dataVencimento) {
+                            dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
+                        } else if (guia.dataSolicitacao && fila.prazoHoras) {
+                            dataVencimento = new Date(guia.dataSolicitacao);
+                            dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
+                        }
 
-                        // Se falta menos que o limite de alerta (2h) e ainda é positivo
-                        if (diffMs > 0 && diffMs <= (fila.limiteAlertaHoras * 60 * 60 * 1000)) {
-                            totalProximas++;
-                            listaProximas.push(numeroGuia);
+                        if (dataVencimento) {
+                            const agora = new Date();
+                            const diffMs = dataVencimento - agora;
+                            
+                            if (diffMs > 0 && diffMs <= (fila.limiteAlertaHoras * 60 * 60 * 1000)) {
+                                totalProximas++;
+                                listaProximas.push(numeroGuia);
+                            } else {
+                                dentroPrazo++;
+                            }
                         } else {
                             dentroPrazo++;
                         }
-                    } else {
-                        dentroPrazo++;
                     }
                 }
             });

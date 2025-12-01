@@ -5,10 +5,10 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-
 // --- IMPORTAÇÃO DAS ROTAS ---
 const regulacaoRoutes = require('./routes/regulacao.routes');
 const auditoriaRoutes = require('./routes/auditoria.routes');
+const faturamentoRoutes = require('./routes/faturamento.routes'); 
 
 const app = express();
 const PORT = 3000;
@@ -46,15 +46,14 @@ app.use((req, res, next) => {
 
 // --- DEFINIÇÃO DE ROTAS (API) ---
 
-// 1. Rotas de Regulação
-// O arquivo regulacao.routes.js define '/guias-negadas', etc.
-// Aqui com prefixo '/api', resultando em: '/api/guias-negadas'
+// 1. Rotas de Regulação (/api/guias-negadas, etc)
 app.use('/api', regulacaoRoutes);
 
-// 2. Rotas de Auditoria
-// O arquivo auditoria.routes.js define '/dashboard'.
-// Aqui  com prefixo '/api/auditoria', resultando em: '/api/auditoria/dashboard'
+// 2. Rotas de Auditoria (/api/auditoria/dashboard)
 app.use('/api/auditoria', auditoriaRoutes);
+
+// 3. Rotas de Faturamento (/api/faturamento/estatisticas)
+app.use('/api/faturamento', faturamentoRoutes); // <--- 2. REGISTRAR AQUI
 
 // --- ROTAS DE FRONTEND (HTML) ---
 
@@ -63,12 +62,17 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'html', 'index.html'));
 });
 
-// Nova Rota (Auditoria) - Acessível em http://localhost:3000/auditoria
+// Rota Auditoria
 app.get('/auditoria', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'html', 'auditoria.html'));
 });
 
-// Rota de fallback para garantir que regulacao.html também funcione direto
+// Rota Faturamento (Para acessar http://localhost:3000/faturamento)
+app.get('/faturamento', (req, res) => { // <--- 3. ROTA FRONTEND (OPCIONAL MAS RECOMENDADO)
+    res.sendFile(path.join(__dirname, 'public', 'html', 'faturamento.html'));
+});
+
+// Rota de fallback para arquivos .html diretos
 app.get('/html/regulacao.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'html', 'regulacao.html'));
 });
@@ -76,7 +80,6 @@ app.get('/html/regulacao.html', (req, res) => {
 // --- INICIALIZAÇÃO ---
 
 async function startServer() {
-    // Verifica pasta public (mantendo sua lógica original)
     const publicPath = path.join(__dirname, 'public');
     if (!fs.existsSync(publicPath)) {
         fs.mkdirSync(publicPath);
@@ -89,6 +92,7 @@ async function startServer() {
         console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
         console.log(`📊 Dashboard Regulação: http://localhost:${PORT}`);
         console.log(`📋 Dashboard Auditoria: http://localhost:${PORT}/auditoria`);
+        console.log(`💰 Dashboard Faturamento: http://localhost:${PORT}/faturamento`);
     });
 }
 

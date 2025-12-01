@@ -57,13 +57,14 @@ router.get('/sla-tempo-real', async (req, res) => {
                 prazoHoras: 10 * 24,
                 limiteAlertaHoras: 24
             },
+            // --- MUDANÇA 1: Prorrogação UNIFICADA aqui ---
             { 
-                id: 'PRORROGACAO_ELETIVA', 
-                label: 'Prorrogação Eletiva', 
+                id: 'PRORROGACAO', 
+                label: 'Prorrogação (Geral)', 
                 url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
-                tipo: 'eletiva',
+                tipo: 'eletiva', // Mantemos 'eletiva' apenas para agrupamento no JSON, mas pega tudo
                 prazoHoras: 24,
-                limiteAlertaHoras: 4
+                limiteAlertaHoras: 2 // --- MUDANÇA 2: Alerta com 2 horas ---
             },
             { 
                 id: 'OPME_ELETIVA', 
@@ -92,14 +93,7 @@ router.get('/sla-tempo-real', async (req, res) => {
                 prazoHoras: 6,
                 limiteAlertaHoras: 1
             },
-            { 
-                id: 'PRORROGACAO_URGENCIA', 
-                label: 'Prorrogação Urgência', 
-                url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
-                tipo: 'urgencia',
-                prazoHoras: 24,
-                limiteAlertaHoras: 4
-            },
+            // --- MUDANÇA 1: Prorrogação Urgência REMOVIDA (agora é tudo no card unificado acima) ---
             { 
                 id: 'OPME_URGENCIA', 
                 label: 'OPME Urgência', 
@@ -124,20 +118,11 @@ router.get('/sla-tempo-real', async (req, res) => {
             let page = 0;
             let totalPages = 1;
             let guiasBrutas = [];
-            let requestsCount = 0;
             
-            // Loop de paginação para buscar todas as guias da fila
             do {
                 try {
-                    requestsCount++;
                     const urlComPagina = `${fila.url}&page=${page}`;
-                    
                     const response = await fetch(urlComPagina, { headers });
-                    
-                    if (response.status === 401 || response.status === 403) { 
-                        console.error(`⛔ Erro de Permissão na fila ${fila.label}. Status: ${response.status}`);
-                        break; 
-                    }
                     
                     if (!response.ok) break;
                     
@@ -158,63 +143,53 @@ router.get('/sla-tempo-real', async (req, res) => {
                 await new Promise(resolve => setTimeout(resolve, 100)); 
             } while (page < totalPages);
 
-            // 4. FILTRAGEM POR STATUS E REGRAS DE NEGÓCIO
-            const agora = new Date();
+            // 4. FILTRAGEM
             const statusPermitidos = ['EM_ANALISE', 'EM_REANALISE'];
 
-            // Lógica de filtragem corrigida e limpa
             const guiasValidas = guiasBrutas.filter(guia => {
                 // 1. Validação de Status
                 const rawStatus = guia.status || guia.statusRegulacao || guia.situacao;
                 const status = rawStatus ? String(rawStatus).toUpperCase().trim() : '';
                 if (!statusPermitidos.includes(status)) return false;
 
-                // Variáveis auxiliares para as regras
                 const nomeFila = (guia.fila || '').toUpperCase();
                 const nomePrestador = (guia.prestador || '').toUpperCase();
                 const nomeArea = (guia.area || '').toUpperCase();
 
-                // 2. REGRA DE EXCLUSÃO: HOME CARE
-                // Se for Home Care (na fila ou no prestador), removemos de TUDO.
-                if (nomeFila.includes('HOME CARE') || nomePrestador.includes('HOME CARE')) {
-                    return false; 
-                }
+                // 2. EXCLUSÃO: HOME CARE
+                if (nomeFila.includes('HOME CARE') || nomePrestador.includes('HOME CARE')) return false; 
 
-                // 3. REGRA DE ROTEAMENTO: OPME
-                // Uma guia é considerada OPME se a fila tem 'OPME' OU a área é 'OPME'
+                // 3. ROTEAMENTO: OPME
                 const ehGuiaDeOpme = nomeFila.includes('OPME') || nomeArea === 'OPME';
                 const estouNoCardDeOpme = fila.id.includes('OPME');
 
                 if (estouNoCardDeOpme) {
-                    // Se estou no card de OPME, SÓ aceito guias que sejam de OPME (mesmo que sejam Prorrogação)
                     if (!ehGuiaDeOpme) return false;
                 } else {
-                    // Se estou em OUTROS cards (Internação, Prorrogação, SADT), 
-                    // REJEITO se a guia for de OPME (pois ela deve ir para o card de OPME)
                     if (ehGuiaDeOpme) return false;
                 }
                 
-                // 4. Lógica de filtragem por Urgência/Eletiva
-                // A lógica abaixo determina se a guia é urgência para classificar nos buckets corretos
-                
-                // Se for OPME (já sabemos que está no bucket certo devido ao passo 3), usamos o prazo
+                // 4. FILTRAGEM DE PRORROGAÇÃO UNIFICADA
+                // Se for o card unificado de Prorrogação, ACEITA TUDO (urgência ou eletiva) que sobrou aqui
+                if (fila.id === 'PRORROGACAO') {
+                    return true;
+                }
+
+                // 5. FILTRAGEM DE URGÊNCIA/ELETIVA (Para os outros cards)
                 if (fila.id.includes('OPME')) {
-                    const dataSolicitacaoRaw = guia.dataHoraSolicitacao || guia.dataSolicitacao;
-                    const dataVencimentoRaw = guia.dataVencimentoSla || guia.dataVencimento;
-                    
-                    if (!dataSolicitacaoRaw || !dataVencimentoRaw) return true; // Na dúvida, exibe
-                    
-                    const dataSolicitacao = new Date(dataSolicitacaoRaw);
-                    const dataVencimento = new Date(dataVencimentoRaw);
+                    // Lógica específica de prazo para OPME
+                    const dataSolicitacao = new Date(guia.dataHoraSolicitacao || guia.dataSolicitacao);
+                    const dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
+                    if (isNaN(dataSolicitacao) || isNaN(dataVencimento)) return true;
+
                     const prazoTotalHoras = (dataVencimento - dataSolicitacao) / (1000 * 60 * 60);
-                    
                     const isOPMEUrgencia = prazoTotalHoras < 7; 
                     
                     if (fila.tipo === 'urgencia') return isOPMEUrgencia;
                     else return !isOPMEUrgencia;
                 }
                 
-                // Se NÃO for OPME (Internação, SADT, Prorrogação Comum)
+                // Lógica padrão Internação/SADT
                 const isUrgencia = nomeFila.includes('URGÊNCIA') || 
                                    nomeFila.includes('EMERGÊNCIA') ||
                                    nomeFila.includes('URGENCIA');
@@ -225,7 +200,7 @@ router.get('/sla-tempo-real', async (req, res) => {
                 return true;
             });
 
-            // 5. CÁLCULO DE ESTATÍSTICAS (Baseado nas guias filtradas)
+            // 5. CÁLCULO DE ESTATÍSTICAS
             let total = guiasValidas.length;
             let dentroPrazo = 0;
             let totalVencidas = 0;
@@ -234,45 +209,47 @@ router.get('/sla-tempo-real', async (req, res) => {
             let listaProximas = [];
 
             guiasValidas.forEach(guia => {
-                let dataVencimento = null;
+                const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
                 
-                // Prioriza o vencimento fornecido pela API
-                if (guia.dataVencimentoSla || guia.dataVencimento) {
-                    dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
-                } 
-                // Fallback apenas se não for OPME (pois OPME já calculamos acima ou confiamos na API)
-                else if (guia.dataSolicitacao && fila.prazoHoras && !fila.id.includes('OPME')) {
-                    dataVencimento = new Date(guia.dataSolicitacao);
-                    dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
-                }
+                // --- MUDANÇA 3: Definição de Vencida pela API ---
+                // Verifica se a API diz explicitamente que está atrasada
+                const apiDizQueEstaAtrasada = guia.atrasada === true || 
+                                              (guia.situacaoSla && String(guia.situacaoSla).includes('ATRASO'));
 
-                if (dataVencimento) {
-                    const agora = new Date();
-                    const diffMs = dataVencimento - agora; 
-                    const diffHoras = diffMs / (1000 * 60 * 60);
-                    const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
+                if (apiDizQueEstaAtrasada) {
+                    // VERMELHO: A API disse que venceu
+                    totalVencidas++;
+                    listaVencidas.push(numeroGuia);
+                } else {
+                    // Se a API diz que NÃO venceu, verificamos se está PRÓXIMA (Amarelo)
+                    let dataVencimento = null;
 
-                    if (diffMs <= 0) {
-                        // JÁ VENCEU
-                        totalVencidas++;
-                        listaVencidas.push(numeroGuia);
-                    } else if (diffMs <= (fila.limiteAlertaHoras * 60 * 60 * 1000)) {
-                        // PRÓXIMA DO VENCIMENTO
-                        totalProximas++;
-                        listaProximas.push(numeroGuia);
+                    if (guia.dataVencimentoSla || guia.dataVencimento) {
+                        dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
+                    } else if (guia.dataSolicitacao && fila.prazoHoras) {
+                        dataVencimento = new Date(guia.dataSolicitacao);
+                        dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
+                    }
+
+                    if (dataVencimento) {
+                        const agora = new Date();
+                        const diffMs = dataVencimento - agora;
+                        // const diffHoras = diffMs / (1000 * 60 * 60);
+
+                        // Se falta menos que o limite de alerta (2h) e ainda é positivo
+                        if (diffMs > 0 && diffMs <= (fila.limiteAlertaHoras * 60 * 60 * 1000)) {
+                            totalProximas++;
+                            listaProximas.push(numeroGuia);
+                        } else {
+                            dentroPrazo++;
+                        }
                     } else {
-                        // DENTRO DO PRAZO
                         dentroPrazo++;
                     }
-                } else {
-                    // Se não tem data de vencimento, consideramos dentro do prazo por padrão
-                    dentroPrazo++;
                 }
             });
 
             const percentualSLA = total > 0 ? ((dentroPrazo / total) * 100).toFixed(1) : 100;
-
-            console.log(`📊 ${fila.label}: ${total} guias, ${dentroPrazo} dentro do prazo`);
 
             return {
                 id: fila.id,
@@ -287,8 +264,6 @@ router.get('/sla-tempo-real', async (req, res) => {
                 status: parseFloat(percentualSLA) < 90 ? 'danger' : (parseFloat(percentualSLA) < 98 ? 'warning' : 'success')
             };
         }));
-
-        console.log('\n🎉 PROCESSAMENTO CONCLUÍDO');
 
         const dadosFinais = {
             eletivas: resultadosBrutos.filter(r => r.tipo === 'eletiva'),

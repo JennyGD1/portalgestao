@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Faturamento</title>
+    <link rel="stylesheet" href="../css/faturamento.css"> 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+</head>
+<body>
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loader"></div>
+    </div>
+    
+    <header>
+        <div class="container">
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="/">Início</a></li>
+                    <li><a href="/html/auditoria.html">Auditoria</a></li>
+                    <li><a href="/html/regulacao.html">Regulação</a></li> 
+                    <li><a href="/html/faturamento.html" class="active">Faturamento</a></li>
+                    <li><a href="/html/credenciamento.html">Credenciamento</a></li>
+                    <li><a href="/html/apresentacao.html">Apresentação</a></li>
+                </ul>
+            </nav>
+            <h1>Dashboard de Faturamento</h1>
+        </div>
+    </header>
+
+    <div class="container">
+        
+        <div class="filters">
+            <div class="filter-group">
+                <label for="producao-filter">Competência (Produção):</label>
+                <input type="month" id="producao-filter" class="filter-input">
+            </div>
+            
+            <button class="btn-refresh" id="refresh-btn">Filtrar</button>
+        </div>
+        
+        <div class="metricas-cards">
+            <div class="metrica-card bg-azul">
+                <h3>Total Apresentado</h3>
+                <div class="metrica-value" id="val-apresentado">R$ 0,00</div>
+            </div>
+            <div class="metrica-card bg-verde">
+                <h3>Total Apurado (Liberado)</h3>
+                <div class="metrica-value" id="val-liberado">R$ 0,00</div>
+            </div>
+            <div class="metrica-card bg-rosa">
+                <h3>Total Glosado</h3>
+                <div class="metrica-value" id="val-glosa">R$ 0,00</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 20px;">
+             <h3>Visão Geral por Status</h3>
+        </div>
+        
+        <div class="status-grid">
+            <div class="status-card analise" id="card-para-analise">
+                <div class="status-title">Para Análise</div>
+                <div class="status-big-percent pct">0%</div>
+                <div class="status-row">
+                    <span class="status-label">Quantidade:</span>
+                    <span class="status-val qtd">0</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Valor (R$):</span>
+                    <span class="status-val val">R$ 0,00</span>
+                </div>
+            </div>
+
+            <div class="status-card em-analise" id="card-em-analise">
+                <div class="status-title">Em Análise</div>
+                <div class="status-big-percent pct">0%</div>
+                <div class="status-row">
+                    <span class="status-label">Quantidade:</span>
+                    <span class="status-val qtd">0</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Valor (R$):</span>
+                    <span class="status-val val">R$ 0,00</span>
+                </div>
+            </div>
+
+            <div class="status-card tramitado" id="card-tramitado">
+                <div class="status-title">Tramitado</div>
+                <div class="status-big-percent pct">0%</div>
+                <div class="status-row">
+                    <span class="status-label">Quantidade:</span>
+                    <span class="status-val qtd">0</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Valor (R$):</span>
+                    <span class="status-val val">R$ 0,00</span>
+                </div>
+            </div>
+
+            <div class="status-card arquivado" id="card-arquivado">
+                <div class="status-title">Arquivado</div>
+                <div class="status-big-percent pct">0%</div>
+                <div class="status-row">
+                    <span class="status-label">Quantidade:</span>
+                    <span class="status-val qtd">0</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Valor (R$):</span>
+                    <span class="status-val val">R$ 0,00</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>Principais Prestadores (Volume Apresentado)</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart-top-volume"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Principais Prestadores (Maior Glosa)</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart-top-glosa"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>Tipos de Atendimento / Tratamento</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart-tratamento"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Produtividade dos Colaboradores</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart-produtividade"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        </div> 
+    <script src="../js/faturamento.js"></script>
+    <script src="../js/nav.js"></script>
+</body>
+</html>

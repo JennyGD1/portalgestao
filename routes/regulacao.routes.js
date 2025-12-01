@@ -68,7 +68,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'OPME_ELETIVA', 
                 label: 'OPME Eletiva', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME,PRORROGACAO_DE_INTERNACAO`,
                 tipo: 'eletiva',
                 prazoHoras: 21 * 24, 
                 limiteAlertaHoras: 24
@@ -103,7 +103,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             { 
                 id: 'OPME_URGENCIA', 
                 label: 'OPME Urgência', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME,PRORROGACAO_DE_INTERNACAO`,
                 tipo: 'urgencia',
                 prazoHoras: 6, 
                 limiteAlertaHoras: 1
@@ -126,6 +126,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             let guiasBrutas = [];
             let requestsCount = 0;
             
+            // Loop de paginação para buscar todas as guias da fila
             do {
                 try {
                     requestsCount++;
@@ -157,50 +158,74 @@ router.get('/sla-tempo-real', async (req, res) => {
                 await new Promise(resolve => setTimeout(resolve, 100)); 
             } while (page < totalPages);
 
-            // 4. FILTRAGEM POR STATUS E TIPO
+            // 4. FILTRAGEM POR STATUS E REGRAS DE NEGÓCIO
             const agora = new Date();
             const statusPermitidos = ['EM_ANALISE', 'EM_REANALISE'];
 
+            // Lógica de filtragem corrigida e limpa
             const guiasValidas = guiasBrutas.filter(guia => {
+                // 1. Validação de Status
                 const rawStatus = guia.status || guia.statusRegulacao || guia.situacao;
                 const status = rawStatus ? String(rawStatus).toUpperCase().trim() : '';
-                
                 if (!statusPermitidos.includes(status)) return false;
-                
-                // Lógica de filtragem por tipo de prioridade/urgência
-                if (!fila.id.includes('OPME')) {
-                    const filaGuia = guia.fila || '';
-                    const isUrgencia = filaGuia.toLowerCase().includes('urgência') || 
-                                       filaGuia.toLowerCase().includes('emergência') ||
-                                       filaGuia.toLowerCase().includes('urgencia');
-                    
-                    if (fila.tipo === 'urgencia' && !isUrgencia) return false;
-                    if (fila.tipo === 'eletiva' && isUrgencia) return false;
-                    
-                    return true;
+
+                // Variáveis auxiliares para as regras
+                const nomeFila = (guia.fila || '').toUpperCase();
+                const nomePrestador = (guia.prestador || '').toUpperCase();
+                const nomeArea = (guia.area || '').toUpperCase();
+
+                // 2. REGRA DE EXCLUSÃO: HOME CARE
+                // Se for Home Care (na fila ou no prestador), removemos de TUDO.
+                if (nomeFila.includes('HOME CARE') || nomePrestador.includes('HOME CARE')) {
+                    return false; 
                 }
 
-                // Para OPME, classifica pelo prazo de SLA
-                const dataSolicitacaoRaw = guia.dataHoraSolicitacao || guia.dataSolicitacao;
-                const dataVencimentoRaw = guia.dataVencimentoSla || guia.dataVencimento;
-                
-                if (!dataSolicitacaoRaw || !dataVencimentoRaw) {
-                    return true;
-                }
-                
-                const dataSolicitacao = new Date(dataSolicitacaoRaw);
-                const dataVencimento = new Date(dataVencimentoRaw);
-                
-                const prazoTotalHoras = (dataVencimento - dataSolicitacao) / (1000 * 60 * 60);
-                const isOPMEUrgencia = prazoTotalHoras < 7; 
-                
-                if (fila.tipo === 'urgencia') {
-                    return isOPMEUrgencia;
+                // 3. REGRA DE ROTEAMENTO: OPME
+                // Uma guia é considerada OPME se a fila tem 'OPME' OU a área é 'OPME'
+                const ehGuiaDeOpme = nomeFila.includes('OPME') || nomeArea === 'OPME';
+                const estouNoCardDeOpme = fila.id.includes('OPME');
+
+                if (estouNoCardDeOpme) {
+                    // Se estou no card de OPME, SÓ aceito guias que sejam de OPME (mesmo que sejam Prorrogação)
+                    if (!ehGuiaDeOpme) return false;
                 } else {
-                    return !isOPMEUrgencia;
+                    // Se estou em OUTROS cards (Internação, Prorrogação, SADT), 
+                    // REJEITO se a guia for de OPME (pois ela deve ir para o card de OPME)
+                    if (ehGuiaDeOpme) return false;
                 }
+                
+                // 4. Lógica de filtragem por Urgência/Eletiva
+                // A lógica abaixo determina se a guia é urgência para classificar nos buckets corretos
+                
+                // Se for OPME (já sabemos que está no bucket certo devido ao passo 3), usamos o prazo
+                if (fila.id.includes('OPME')) {
+                    const dataSolicitacaoRaw = guia.dataHoraSolicitacao || guia.dataSolicitacao;
+                    const dataVencimentoRaw = guia.dataVencimentoSla || guia.dataVencimento;
+                    
+                    if (!dataSolicitacaoRaw || !dataVencimentoRaw) return true; // Na dúvida, exibe
+                    
+                    const dataSolicitacao = new Date(dataSolicitacaoRaw);
+                    const dataVencimento = new Date(dataVencimentoRaw);
+                    const prazoTotalHoras = (dataVencimento - dataSolicitacao) / (1000 * 60 * 60);
+                    
+                    const isOPMEUrgencia = prazoTotalHoras < 7; 
+                    
+                    if (fila.tipo === 'urgencia') return isOPMEUrgencia;
+                    else return !isOPMEUrgencia;
+                }
+                
+                // Se NÃO for OPME (Internação, SADT, Prorrogação Comum)
+                const isUrgencia = nomeFila.includes('URGÊNCIA') || 
+                                   nomeFila.includes('EMERGÊNCIA') ||
+                                   nomeFila.includes('URGENCIA');
+                
+                if (fila.tipo === 'urgencia' && !isUrgencia) return false;
+                if (fila.tipo === 'eletiva' && isUrgencia) return false;
+
+                return true;
             });
 
+            // 5. CÁLCULO DE ESTATÍSTICAS (Baseado nas guias filtradas)
             let total = guiasValidas.length;
             let dentroPrazo = 0;
             let totalVencidas = 0;
@@ -211,11 +236,11 @@ router.get('/sla-tempo-real', async (req, res) => {
             guiasValidas.forEach(guia => {
                 let dataVencimento = null;
                 
-                // 1. Prioriza o vencimento fornecido pela API
+                // Prioriza o vencimento fornecido pela API
                 if (guia.dataVencimentoSla || guia.dataVencimento) {
                     dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
                 } 
-                // 2. Fallback apenas se não for OPME
+                // Fallback apenas se não for OPME (pois OPME já calculamos acima ou confiamos na API)
                 else if (guia.dataSolicitacao && fila.prazoHoras && !fila.id.includes('OPME')) {
                     dataVencimento = new Date(guia.dataSolicitacao);
                     dataVencimento.setHours(dataVencimento.getHours() + fila.prazoHoras);
@@ -223,41 +248,31 @@ router.get('/sla-tempo-real', async (req, res) => {
 
                 if (dataVencimento) {
                     const agora = new Date();
-                    const diffMs = dataVencimento - agora; // CORREÇÃO: agora - dataVencimento estava invertido
+                    const diffMs = dataVencimento - agora; 
                     const diffHoras = diffMs / (1000 * 60 * 60);
                     const numeroGuia = guia.autorizacaoGuia || guia.numeroGuia || 'S/N';
 
-                    console.log(`📋 Guia ${numeroGuia}: Vence em ${diffHoras.toFixed(2)} horas (${dataVencimento.toISOString()})`);
-
-                    // CORREÇÃO: Lógica de status corrigida
-                    if (diffMs > 0) {
-                        // AINDA NO PRAZO
-                        dentroPrazo++;
-                        
-                        // Verifica se está Próxima de Vencer (Alerta Amarelo)
-                        if (diffHoras <= fila.limiteAlertaHoras) {
-                            totalProximas++;
-                            listaProximas.push(numeroGuia);
-                            console.log(`⚠️ Guia ${numeroGuia} PRÓXIMA do vencimento: ${diffHoras.toFixed(2)}h restantes`);
-                        } else {
-                            console.log(`✅ Guia ${numeroGuia} DENTRO do prazo: ${diffHoras.toFixed(2)}h restantes`);
-                        }
-                    } else {
-                        // JÁ VENCEU (Alerta Vermelho)
+                    if (diffMs <= 0) {
+                        // JÁ VENCEU
                         totalVencidas++;
                         listaVencidas.push(numeroGuia);
-                        console.log(`🚨 Guia ${numeroGuia} VENCIDA: ${Math.abs(diffHoras).toFixed(2)}h atrás`);
+                    } else if (diffMs <= (fila.limiteAlertaHoras * 60 * 60 * 1000)) {
+                        // PRÓXIMA DO VENCIMENTO
+                        totalProximas++;
+                        listaProximas.push(numeroGuia);
+                    } else {
+                        // DENTRO DO PRAZO
+                        dentroPrazo++;
                     }
                 } else {
-                    // Se não há data de vencimento
+                    // Se não tem data de vencimento, consideramos dentro do prazo por padrão
                     dentroPrazo++;
-                    console.log(`❓ Guia sem data de vencimento: ${guia.autorizacaoGuia || 'S/N'}`);
                 }
             });
 
             const percentualSLA = total > 0 ? ((dentroPrazo / total) * 100).toFixed(1) : 100;
 
-            console.log(`📊 ${fila.label}: ${total} guias, ${dentroPrazo} dentro do prazo, ${totalVencidas} vencidas, ${totalProximas} próximas`);
+            console.log(`📊 ${fila.label}: ${total} guias, ${dentroPrazo} dentro do prazo`);
 
             return {
                 id: fila.id,
@@ -288,9 +303,6 @@ router.get('/sla-tempo-real', async (req, res) => {
     }
 });
 module.exports = router;
-// ------------------------------------------------------------------------------------------------
-// Rota API: guias-negadas
-// ------------------------------------------------------------------------------------------------
 router.get('/guias-negadas', async (req, res) => {
     try {
         console.log('🔍 Buscando guias negadas com filtros...');
@@ -319,7 +331,6 @@ router.get('/guias-negadas', async (req, res) => {
             ];
         }
 
-        // Busca as guias com os filtros aplicados
         const guiasEncontradas = await guiasCollection.find(query).toArray();
         
         const resultado = [];
@@ -362,7 +373,6 @@ router.get('/guias-negadas', async (req, res) => {
             }
         }
         
-        // CORREÇÃO: Ordena pelo valor total negado (Maior -> Menor)
         resultado.sort((a, b) => b.totalNegado - a.totalNegado);
         
         res.json({ success: true, data: resultado, total: resultado.length });
@@ -373,9 +383,6 @@ router.get('/guias-negadas', async (req, res) => {
     }
 });
 
-// ------------------------------------------------------------------------------------------------
-// Rota API: estatisticas 
-// ------------------------------------------------------------------------------------------------
 router.get('/estatisticas', async (req, res) => {
     try {
         console.log('📈 Calculando estatísticas...');
@@ -455,7 +462,6 @@ router.get('/estatisticas', async (req, res) => {
             }
         }
         
-        // Processamentos Top 10 e ordenações
         const topNegados = Array.from(procedimentosMap.entries())
             .map(([codigo, data]) => ({ codigo, ...data }))
             .sort((a, b) => b.totalNegado - a.totalNegado).slice(0, 10);
@@ -490,9 +496,6 @@ router.get('/estatisticas', async (req, res) => {
     }
 });
 
-// ------------------------------------------------------------------------------------------------
-// Rota API: sla-desempenho (ATUALIZADA COM IA vs GABRIEL)
-// ------------------------------------------------------------------------------------------------
 router.get('/sla-desempenho', async (req, res) => {
     try {
         console.log('🔄 Calculando estatísticas de SLA e Comparativo IA...');
@@ -515,8 +518,7 @@ router.get('/sla-desempenho', async (req, res) => {
         const statsPorRegulador = new Map();
         const statsPorData = new Map();
 
-        // Novas estruturas para o Comparativo IA
-        const comparativoIA_PorData = new Map(); // Chave: Data, Valor: { ymir: 0, gabriel: 0, outros: 0 }
+        const comparativoIA_PorData = new Map(); 
         let totalYmir = 0;
         let totalGabriel = 0;
         let totalOutros = 0;
@@ -544,11 +546,9 @@ router.get('/sla-desempenho', async (req, res) => {
                 statsPorData.set(semana, dataStats);
             }
 
-            // --- LÓGICA DE REGULADORES E IA ---
             const reguladores = guia.reguladores || [];
-            let reguladorIdentificado = 'Outros'; // Default para contagem temporal
+            let reguladorIdentificado = 'Outros'; 
 
-            // 1. Lógica para IA YMIR
             if (reguladores.length === 0 && guia.reguladaAutomaticamente) {
                 const nomeIA = 'YMIR (IA)';
                 const regStats = statsPorRegulador.get(nomeIA) || { total: 0, dentroSLA: 0 };
@@ -559,12 +559,10 @@ router.get('/sla-desempenho', async (req, res) => {
                 reguladorIdentificado = 'Ymir';
                 totalYmir++;
             } 
-            // 2. Lógica para Reguladores Humanos
             else if (reguladores.length > 0) {
                 for (const reguladorObj of reguladores) {
                     let nome = reguladorObj.nomeRegulador || 'Regulador Desconhecido';
 
-                    // Normalização
                     nome = nome.toLowerCase().replace(/[^a-zÀ-ÿ\s]/g, '').replace(/\s+/g, ' ').trim();
                     const nomeOriginalFormatado = reguladorObj.nomeRegulador ? reguladorObj.nomeRegulador.trim() : 'Desconhecido';
 
@@ -573,21 +571,19 @@ router.get('/sla-desempenho', async (req, res) => {
                     if (dentroSLA) regStats.dentroSLA++;
                     statsPorRegulador.set(nome, regStats);
 
-                    // Verifica se é o Gabriel
                     if (nome.includes('gabriel costa campos')) {
                         reguladorIdentificado = 'Gabriel';
-                        totalGabriel++; // Incrementa aqui (cuidado com múltiplas regulações na mesma guia, aqui conta por regulador)
+                        totalGabriel++; 
                     } else {
                         totalOutros++;
                     }
                 }
             } else {
-                totalOutros++; // Sem regulador e sem flag automática
+                totalOutros++; 
             }
             
             totalGeralIA++;
 
-            // --- POPULAR DADOS TEMPORAIS (COMPARATIVO) ---
             if (semana) {
                 const dadosSemana = comparativoIA_PorData.get(semana) || { ymir: 0, gabriel: 0, outros: 0 };
                 if (reguladorIdentificado === 'Ymir') dadosSemana.ymir++;
@@ -598,7 +594,6 @@ router.get('/sla-desempenho', async (req, res) => {
             }
         }
 
-        // --- Processamento Final ---
         let totalGuiasSLA = 0;
         let totalDentroSLA = 0;
         for (const stats of statsPorTipo.values()) {

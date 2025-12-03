@@ -6,14 +6,12 @@ const router = express.Router();
 // ------------------------------------------------------------------------------------------------
 
 function getInicioSemana(dateString) {
-    // Adiciona T12:00:00 para evitar problemas de fuso horário (UTC)
     const data = new Date(dateString + 'T12:00:00Z'); 
-    const diaDaSemana = data.getUTCDay(); // 0 = Domingo, 1 = Segunda...
+    const diaDaSemana = data.getUTCDay(); 
     const diff = data.getUTCDate() - diaDaSemana;
     const inicioSemana = new Date(data.setUTCDate(diff));
-    return inicioSemana.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
+    return inicioSemana.toISOString().split('T')[0];
 }
-
 // --------------------------
 // SLA EM TEMPO REAL 
 // -------------------------
@@ -21,7 +19,6 @@ router.get('/sla-tempo-real', async (req, res) => {
     try {
         console.log('🔄 Iniciando monitoramento de SLA em Tempo Real...');
 
-        // 1. OBTER TOKEN DE ACESSO
         const GAS_TOKEN_URL = process.env.GAS_TOKEN_URL; 
         let authToken = '';
 
@@ -31,14 +28,11 @@ router.get('/sla-tempo-real', async (req, res) => {
             if (!tokenResponse.ok) throw new Error('Falha ao obter token do GAS');
             const tokenData = await tokenResponse.json();
             authToken = tokenData.token || tokenData.accessToken || tokenData; 
-            console.log('✅ Token obtido com sucesso');
         } catch (tokenError) {
-            console.error('❌ Erro fatal: Não foi possível obter o token.', tokenError);
+            console.error('❌ Erro fatal: Falha na autenticação (Token).', tokenError);
             return res.status(500).json({ success: false, error: 'Falha na autenticação externa' });
         }
-
-        // 2. CONFIGURAÇÃO DAS FILAS
-        const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE,DOCUMENTACAO_EM_ANALISE&size=20';
+        const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE,DOCUMENTACAO_EM_ANALISE';
         
         const filasEletivas = [
             { 
@@ -57,19 +51,18 @@ router.get('/sla-tempo-real', async (req, res) => {
                 prazoHoras: 10 * 24,
                 limiteAlertaHoras: 24
             },
-            // --- MUDANÇA 1: Prorrogação UNIFICADA aqui ---
             { 
                 id: 'PRORROGACAO', 
                 label: 'Prorrogação (Geral)', 
                 url: `${baseURL}&tipoDeGuia=PRORROGACAO_DE_INTERNACAO`,
-                tipo: 'eletiva', // Mantemos 'eletiva' apenas para agrupamento no JSON, mas pega tudo
+                tipo: 'eletiva', 
                 prazoHoras: 24,
-                limiteAlertaHoras: 2 // --- MUDANÇA 2: Alerta com 2 horas ---
+                limiteAlertaHoras: 2
             },
             { 
                 id: 'OPME_ELETIVA', 
                 label: 'OPME Eletiva', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME,PRORROGACAO_DE_INTERNACAO`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
                 tipo: 'eletiva',
                 prazoHoras: 21 * 24, 
                 limiteAlertaHoras: 24
@@ -93,11 +86,10 @@ router.get('/sla-tempo-real', async (req, res) => {
                 prazoHoras: 6,
                 limiteAlertaHoras: 1
             },
-            // --- MUDANÇA 1: Prorrogação Urgência REMOVIDA (agora é tudo no card unificado acima) ---
             { 
                 id: 'OPME_URGENCIA', 
                 label: 'OPME Urgência', 
-                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME,PRORROGACAO_DE_INTERNACAO`,
+                url: `${baseURL}&tipoDeGuia=SOLICITACAO_DE_OPME`,
                 tipo: 'urgencia',
                 prazoHoras: 6, 
                 limiteAlertaHoras: 1
@@ -111,10 +103,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             'Authorization': `Bearer ${authToken}`
         };
 
-        // 3. BUSCAR DADOS
         const resultadosBrutos = await Promise.all(filas.map(async (fila) => {
-            console.log(`\n🔍 Buscando fila: ${fila.label}`);
-            
             let page = 0;
             let totalPages = 1;
             let guiasBrutas = [];
@@ -143,44 +132,50 @@ router.get('/sla-tempo-real', async (req, res) => {
                 await new Promise(resolve => setTimeout(resolve, 100)); 
             } while (page < totalPages);
 
-            // 4. FILTRAGEM
-            const statusPermitidos = ['EM_ANALISE', 'EM_REANALISE'];
+            if (fila.id.includes('OPME')) {
+                console.log(`[DEBUG OPME] Fila ${fila.label}: API retornou ${guiasBrutas.length} guias.`);
+            }
+
+            const statusPermitidos = ['EM_ANALISE', 'EM_REANALISE', 'DOCUMENTACAO_EM_ANALISE'];
 
             const guiasValidas = guiasBrutas.filter(guia => {
-                // 1. Validação de Status
+          
                 const rawStatus = guia.status || guia.statusRegulacao || guia.situacao;
                 const status = rawStatus ? String(rawStatus).toUpperCase().trim() : '';
                 if (!statusPermitidos.includes(status)) return false;
 
                 const nomeFila = (guia.fila || '').toUpperCase();
                 const nomePrestador = (guia.prestador || '').toUpperCase();
-                const nomeArea = (guia.area || '').toUpperCase();
+                
+                if (fila.id !== 'PRORROGACAO') {
+                    if (nomeFila.includes('HOME CARE') || nomePrestador.includes('HOME CARE')) return false; 
+                }
 
-                // 2. EXCLUSÃO: HOME CARE
-                if (nomeFila.includes('HOME CARE') || nomePrestador.includes('HOME CARE')) return false; 
+                const ehGuiaDeOpme = fila.url.includes('SOLICITACAO_DE_OPME') || 
+                                     nomeFila.includes('OPME') || 
+                                     (guia.area === 'OPME') || 
+                                     (guia.tipoDeGuia === 'SOLICITACAO_DE_OPME');
 
-                // 3. ROTEAMENTO: OPME
-                const ehGuiaDeOpme = nomeFila.includes('OPME') || nomeArea === 'OPME';
-                const estouNoCardDeOpme = fila.id.includes('OPME');
-
-                if (estouNoCardDeOpme) {
-                    if (!ehGuiaDeOpme) return false;
-                } else {
-                    if (ehGuiaDeOpme) return false;
+                if (fila.id !== 'PRORROGACAO') {
+                    if (fila.id.includes('OPME')) {
+                        if (!ehGuiaDeOpme) return false;
+                    } 
+                    else {
+                        if (ehGuiaDeOpme) return false;
+                    }
                 }
                 
-                // 4. FILTRAGEM DE PRORROGAÇÃO UNIFICADA
-                // Se for o card unificado de Prorrogação, ACEITA TUDO (urgência ou eletiva) que sobrou aqui
                 if (fila.id === 'PRORROGACAO') {
                     return true;
                 }
 
-                // 5. FILTRAGEM DE URGÊNCIA/ELETIVA (Para os outros cards)
                 if (fila.id.includes('OPME')) {
-                    // Lógica específica de prazo para OPME
                     const dataSolicitacao = new Date(guia.dataHoraSolicitacao || guia.dataSolicitacao);
                     const dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
-                    if (isNaN(dataSolicitacao) || isNaN(dataVencimento)) return true;
+                    
+                    if (isNaN(dataSolicitacao) || isNaN(dataVencimento)) {
+                        return fila.tipo === 'eletiva'; 
+                    }
 
                     const prazoTotalHoras = (dataVencimento - dataSolicitacao) / (1000 * 60 * 60);
                     const isOPMEUrgencia = prazoTotalHoras < 7; 
@@ -200,7 +195,11 @@ router.get('/sla-tempo-real', async (req, res) => {
                 return true;
             });
 
-            // 5. CÁLCULO DE ESTATÍSTICAS
+            if (fila.id.includes('OPME')) {
+                console.log(`[DEBUG OPME] Fila ${fila.label}: ${guiasValidas.length} guias válidas após filtros.`);
+            }
+
+            // 5. ESTATÍSTICAS
             let total = guiasValidas.length;
             let dentroPrazo = 0;
             let totalVencidas = 0;
@@ -221,9 +220,7 @@ router.get('/sla-tempo-real', async (req, res) => {
                     if (fila.id === 'PRORROGACAO') {
                         dentroPrazo++; 
                     } else {
-
                         let dataVencimento = null;
-
                         if (guia.dataVencimentoSla || guia.dataVencimento) {
                             dataVencimento = new Date(guia.dataVencimentoSla || guia.dataVencimento);
                         } else if (guia.dataSolicitacao && fila.prazoHoras) {

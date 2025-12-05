@@ -42,18 +42,56 @@
         
         <div class="metricas-cards">
             <div class="metrica-card bg-azul">
-                <h3>Total Apresentado</h3>
+                <div class="metrica-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 4H3v16h18V4zM7 8h10M7 12h10M7 16h4"/>
+                    </svg>
+                </div>
+                <h3>Apresentado</h3>
                 <div class="metrica-value" id="val-apresentado">R$ 0,00</div>
+                <div class="metrica-subtitle">Valor total</div>
             </div>
+            
             <div class="metrica-card bg-verde">
-                <h3>Total Apurado (Liberado)</h3>
+                <div class="metrica-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                </div>
+                <h3>Apurado</h3>
                 <div class="metrica-value" id="val-liberado">R$ 0,00</div>
+                <div class="metrica-subtitle">Valor liberado</div>
             </div>
+            
             <div class="metrica-card bg-rosa">
-                <h3>Total Glosado</h3>
+                <div class="metrica-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </div>
+                <h3>Glosado</h3>
                 <div class="metrica-value" id="val-glosa">R$ 0,00</div>
+                <div class="metrica-subtitle">Valor não pago</div>
+            </div>
+            
+            <div class="metrica-card bg-cinza">
+                <div class="metrica-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                </div>
+                <h3>Análise</h3>
+                <div class="metrica-value" id="val-analisados">0/0</div>
+                <div class="progress-info">
+                    <div class="progress-bar-small">
+                        <div id="analise-progress-bar" class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text" id="analise-progress-text">0%</div>
+                </div>
             </div>
         </div>
+
 
         <div class="card" style="margin-bottom: 20px;">
              <h3>Visão Geral por Status</h3>

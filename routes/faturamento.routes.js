@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-// Rota principal de estatísticas do Faturamento
 router.get('/estatisticas', async (req, res) => {
     try {
         const processosCollection = req.db.collection('processos');
@@ -14,10 +13,8 @@ router.get('/estatisticas', async (req, res) => {
         }
 
         const pipeline = [
-            // 1. FILTRO GERAL
             { $match: matchStage },
 
-            // 2. CONVERSÃO HÍBRIDA (NUMERO vs TEXTO)
             {
                 $addFields: {
                     vCapaNum: {
@@ -111,7 +108,6 @@ router.get('/estatisticas', async (req, res) => {
                 }
             },
 
-            // 3. DEFINIÇÃO DE PRIORIDADE (Capa vs Informado)
             {
                 $addFields: {
                     valorApresentadoCalc: {
@@ -121,10 +117,8 @@ router.get('/estatisticas', async (req, res) => {
                 }
             },
 
-            // 4. LÓGICA DA GLOSA (Com Trava de Status)
             {
                 $addFields: {
-                    // Verifica se o status indica finalização
                     isFinalizado: {
                         $regexMatch: { 
                             input: { $toString: "$status" }, 
@@ -137,18 +131,18 @@ router.get('/estatisticas', async (req, res) => {
                 $addFields: {
                     valorGlosaCalc: {
                         $cond: {
-                            if: { $gt: ["$vGlosaNum", 0.01] }, // Se tem glosa explícita no banco
-                            then: "$vGlosaNum",               // Usa sempre (mesmo se não finalizado)
+                            if: { $gt: ["$vGlosaNum", 0.01] }, 
+                            then: "$vGlosaNum",               
                             else: {                           
                                 $cond: {
-                                    if: "$isFinalizado",      // SÓ CALCULA SE ESTIVER FINALIZADO
+                                    if: "$isFinalizado",   
                                     then: {
                                         $max: [ 
                                             0, 
                                             { $subtract: ["$valorApresentadoCalc", "$valorLiberadoCalc"] } 
                                         ]
                                     },
-                                    else: 0 // Se não finalizado e sem glosa no banco, considera 0
+                                    else: 0 
                                 }
                             }
                         }
@@ -156,10 +150,8 @@ router.get('/estatisticas', async (req, res) => {
                 }
             },
 
-            // 5. AGRUPAMENTOS
             {
                 $facet: {
-                    // KPI: Totais Gerais
                     "kpis": [
                         {
                             $group: {
@@ -171,7 +163,6 @@ router.get('/estatisticas', async (req, res) => {
                             }
                         }
                     ],
-                    // KPI: Status Detalhado
                     "statusStats": [
                         {
                             $group: {
@@ -181,7 +172,6 @@ router.get('/estatisticas', async (req, res) => {
                             }
                         }
                     ],
-                    // Gráfico: Top Prestadores (Maior Glosa)
                     "topGlosa": [
                         { $match: { valorGlosaCalc: { $gt: 0 } } },
                         {
@@ -190,7 +180,6 @@ router.get('/estatisticas', async (req, res) => {
                                 totalGlosa: { $sum: "$valorGlosaCalc" }
                             }
                         },
-                        // Filtro remove sem nome
                         { 
                             $match: { 
                                 _id: { $nin: [null, "", " "] } 
@@ -199,7 +188,6 @@ router.get('/estatisticas', async (req, res) => {
                         { $sort: { totalGlosa: -1 } },
                         { $limit: 10 }
                     ],
-                    // Gráfico: Top Prestadores (Maior Volume Apresentado)
                     "topVolume": [
                         {
                             $group: {
@@ -215,7 +203,6 @@ router.get('/estatisticas', async (req, res) => {
                         { $sort: { totalApresentado: -1 } },
                         { $limit: 10 }
                     ],
-                    // Gráfico: Tipos de Tratamento
                     "tratamentos": [
                         {
                             $group: {
@@ -231,7 +218,6 @@ router.get('/estatisticas', async (req, res) => {
                         },
                         { $sort: { totalValor: -1 } }
                     ],
-                    // Gráfico: Produtividade
                     "produtividade": [
                         { 
                             $match: { 
@@ -275,5 +261,57 @@ router.get('/estatisticas', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+router.get('/processos-analisados', async (req, res) => {
+    try {
+        const processosCollection = req.db.collection('processos');
+        const { producao } = req.query;
 
+        const matchStage = {};
+        if (producao) {
+            matchStage.producao = producao;
+        }
+
+        const pipeline = [
+            { $match: matchStage },
+            
+            {
+                $facet: {
+                    totalProcessos: [
+                        { $count: "total" }
+                    ],
+                    processosComGT: [
+                        { $match: { 
+                            gt: { 
+                                $exists: true, 
+                                $ne: null, 
+                                $ne: "" 
+                            } 
+                        }},
+                        { $count: "total" }
+                    ]
+                }
+            }
+        ];
+
+        const results = await processosCollection.aggregate(pipeline).toArray();
+        const data = results[0];
+
+        const totalProcessos = data.totalProcessos[0]?.total || 0;
+        const processosAnalisados = data.processosComGT[0]?.total || 0;
+
+        res.json({
+            success: true,
+            data: {
+                totalProcessos,
+                processosAnalisados,
+                processosNaoAnalisados: totalProcessos - processosAnalisados,
+                percentualAnalisado: totalProcessos > 0 ? (processosAnalisados / totalProcessos) * 100 : 0
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao contar processos analisados:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 module.exports = router;

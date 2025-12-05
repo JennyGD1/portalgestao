@@ -8,14 +8,15 @@
     --cinza-claro-fundo: #f8f9fa;
 }
 
-* {
+/* RESET E BASE */
+*, *::before, *::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'Inter', sans-serif;
 }
 
 body {
+    font-family: 'Inter', sans-serif;
     background-color: var(--cinza-claro-fundo);
     color: #333;
     line-height: 1.6;
@@ -27,7 +28,7 @@ body {
     padding: 20px;
 }
 
-/* HEADER E NAVEGAÇÃO */
+/* HEADER */
 header {
     background: linear-gradient(135deg, var(--maida-azul), #004dcc);
     color: white;
@@ -42,18 +43,14 @@ header h1 {
     font-size: 2em;
 }
 
-.main-nav {
-    width: 100%;
-    margin-bottom: 15px;
-}
-
+/* NAVEGAÇÃO */
 .main-nav ul {
     display: flex;
     justify-content: center;
     align-items: center;
     list-style: none;
     padding: 0;
-    margin: 0;
+    margin: 0 0 15px;
 }
 
 .main-nav li {
@@ -74,7 +71,7 @@ header h1 {
 .main-nav a:hover,
 .main-nav a.active {
     opacity: 1;
-    border-bottom: 2px solid var(--maida-amarelo);
+    border-bottom-color: var(--maida-amarelo);
 }
 
 /* FILTROS */
@@ -119,50 +116,116 @@ header h1 {
     margin-left: 10px;
 }
 
-.btn-refresh {
-    background-color: var(--maida-azul);
-    color: white;
-}
+.btn-refresh { background-color: var(--maida-azul); color: white; }
+.btn-export { background-color: var(--maida-rosa); color: white; }
 
-.btn-export {
-    background-color: var(--maida-rosa);
-    color: white;
-}
-
-/* KPI CARDS (Valores Totais) */
+/* CARDS DE MÉTRICAS */
 .metricas-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
     margin-bottom: 25px;
 }
 
 .metrica-card {
-    padding: 20px;
+    padding: 18px 15px;
     border-radius: 10px;
     color: white;
-    text-align: center;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    min-height: 120px;
+    height: 120px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease;
 }
 
-.metrica-card h3 {
-    font-size: 0.9em;
-    margin-bottom: 5px;
-    opacity: 0.9;
+.metrica-card:hover {
+    transform: translateY(-3px);
 }
 
-.metrica-value {
-    font-size: 1.8em;
-    font-weight: bold;
-}
-
+/* Cores dos cards */
 .bg-azul { background: var(--maida-azul); }
 .bg-rosa { background: var(--maida-rosa); }
 .bg-amarelo { background: var(--maida-amarelo); color: var(--maida-cinza-escuro); }
 .bg-verde { background: var(--maida-verde); }
 .bg-cinza { background: var(--maida-cinza-escuro); }
 
-/* STATUS CARDS DETALHADOS (Análise, Tramitado, etc) */
+/* Conteúdo dos cards */
+.metrica-card h3 {
+    font-size: 0.9em;
+    margin-bottom: 5px;
+    opacity: 0.95;
+    font-weight: 600;
+    width: 100%;
+    text-align: left;
+}
+
+.metrica-value {
+    font-size: 1.5em;
+    font-weight: 700;
+    margin: 5px 0;
+    line-height: 1.2;
+    width: 100%;
+    text-align: left;
+}
+
+.metrica-subtitle {
+    font-size: 0.75em;
+    opacity: 0.85;
+    margin-top: 2px;
+    width: 100%;
+    text-align: left;
+}
+
+/* Ícones */
+.metrica-icon {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    opacity: 0.7;
+}
+
+.metrica-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: white;
+}
+
+/* Progresso da análise */
+.progress-info {
+    width: 100%;
+    margin-top: 5px;
+}
+
+.progress-bar-small {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: white;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.progress-text {
+    font-size: 0.8em;
+    opacity: 0.9;
+    font-weight: 600;
+    width: 100%;
+    text-align: left;
+}
+
+/* STATUS CARDS */
 .status-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -204,12 +267,11 @@ header h1 {
     padding-bottom: 5px;
 }
 
-.status-row:last-child {
-    border-bottom: none;
-}
+.status-row:last-child { border-bottom: none; }
 
 .status-label { color: #888; }
 .status-val { font-weight: bold; color: #333; }
+
 .status-big-percent {
     font-size: 2em;
     font-weight: 800;
@@ -217,7 +279,7 @@ header h1 {
     margin: 10px 0;
 }
 
-/* LAYOUT GRÁFICOS */
+/* GRÁFICOS E CARDS */
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -225,9 +287,7 @@ header h1 {
     margin-bottom: 25px;
 }
 
-.dashboard-grid-full {
-    grid-template-columns: 1fr;
-}
+.dashboard-grid-full { grid-template-columns: 1fr; }
 
 .card {
     background-color: white;
@@ -252,54 +312,6 @@ header h1 {
     margin-top: 5px;
 }
 
-/* TABELA DE RESULTADOS */
-.results-card {
-    background-color: white;
-    padding: 25px;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    margin-top: 30px;
-}
-
-.results-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.results-title {
-    color: var(--maida-azul);
-    font-size: 1.3em;
-}
-
-.table-container {
-    width: 100%;
-    overflow-x: auto;
-}
-
-.results-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9em;
-}
-
-.results-table th, .results-table td {
-    padding: 12px 15px;
-    text-align: left;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.results-table th {
-    background-color: var(--cinza-claro-fundo);
-    color: var(--maida-cinza-escuro);
-    font-weight: 600;
-}
-
-.results-table tr:hover {
-    background-color: #fcfcfc;
-}
-
 /* LOADING */
 .loading-overlay {
     position: fixed;
@@ -314,70 +326,6 @@ header h1 {
     z-index: 1000;
 }
 
-/* Container dos gráficos ajustado */
-.grafico-container {
-    position: relative;
-    width: 100%;
-    height: 350px; /* Altura aumentada */
-    margin-bottom: 20px;
-}
-
-/* Títulos dos gráficos */
-.grafico-titulo {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 15px;
-    color: #2c3e50;
-    padding-left: 5px;
-}
-
-/* Grid responsivo para os gráficos */
-.grid-graficos {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-    gap: 25px;
-    margin-top: 20px;
-}
-
-/* Ajuste específico para gráficos de prestadores */
-.prestadores-container {
-    background: white;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    border: 1px solid #eaeaea;
-}
-
-/* Tooltip customizado */
-.chartjs-tooltip {
-    background: rgba(255, 255, 255, 0.95) !important;
-    border: 1px solid #ddd !important;
-    border-radius: 6px !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-    padding: 10px 15px !important;
-    font-family: 'Segoe UI', sans-serif !important;
-}
-
-/* Para telas menores */
-@media (max-width: 768px) {
-    .grid-graficos {
-        grid-template-columns: 1fr;
-        gap: 15px;
-    }
-    
-    .grafico-container {
-        height: 300px;
-    }
-    
-    .prestadores-container {
-        padding: 15px;
-    }
-}
-
-/* Ajuste do canvas */
-canvas {
-    max-width: 100%;
-}
 .loader {
     border: 8px solid #f3f3f3;
     border-top: 8px solid var(--maida-azul);
@@ -393,9 +341,15 @@ canvas {
 }
 
 /* RESPONSIVIDADE */
+@media (max-width: 1200px) {
+    .metricas-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 @media (max-width: 1024px) {
     .status-grid {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
@@ -403,7 +357,63 @@ canvas {
     .filters {
         flex-direction: column;
     }
-    .dashboard-grid, .status-grid {
+    
+    .dashboard-grid,
+    .status-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .metricas-cards {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .metrica-card {
+        min-height: 110px;
+        height: 110px;
+        padding: 15px 12px;
+    }
+    
+    .metrica-value {
+        font-size: 1.4em;
+    }
+    
+    .metrica-icon {
+        top: 12px;
+        right: 12px;
+    }
+    
+    .metrica-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+}
+
+@media (max-width: 480px) {
+    .metrica-card {
+        min-height: 100px;
+        height: 100px;
+        padding: 12px 10px;
+    }
+    
+    .metrica-value {
+        font-size: 1.3em;
+    }
+    
+    .metrica-card h3 {
+        font-size: 0.85em;
+    }
+    
+    .metrica-subtitle {
+        font-size: 0.7em;
+    }
+    
+    .main-nav ul {
+        flex-wrap: wrap;
+        justify-content: space-around;
+    }
+    
+    .main-nav li {
+        margin: 5px 10px;
     }
 }

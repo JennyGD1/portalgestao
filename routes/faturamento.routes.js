@@ -4,7 +4,8 @@ const router = express.Router();
 router.get('/estatisticas', async (req, res) => {
     try {
         const processosCollection = req.db.collection('processos');
-        const { producao } = req.query; 
+        const { producao } = req.query; // Ex: "10/2025"
+
         const matchStage = {};
         
         if (producao) {
@@ -128,7 +129,32 @@ router.get('/estatisticas', async (req, res) => {
             },
             {
                 $addFields: {
-                    valorGlosaCalc: "$vGlosaNum"
+                    temAmbosValores: {
+                        $and: [
+                            { $gt: ["$valorApresentadoCalc", 0.01] },
+                            { $gt: ["$valorLiberadoCalc", 0.01] }
+                        ]
+                    },
+                    diferencaComoGlosa: {
+                        $cond: {
+                            if: { $lt: ["$valorLiberadoCalc", "$valorApresentadoCalc"] },
+                            then: { $subtract: ["$valorApresentadoCalc", "$valorLiberadoCalc"] },
+                            else: 0
+                        }
+                    },
+                    valorGlosaCalc: {
+                        $cond: {
+                            if: { $gt: ["$vGlosaNum", 0.01] },
+                            then: "$vGlosaNum",
+                            else: {
+                                $cond: {
+                                    if: "$temAmbosValores",
+                                    then: "$diferencaComoGlosa",
+                                    else: 0
+                                }
+                            }
+                        }
+                    }
                 }
             },
 

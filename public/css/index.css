@@ -201,9 +201,24 @@ section {
 }
 
 .module-icon {
-    font-size: 2.5em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     margin-bottom: 15px;
     text-align: center;
+    height: 60px;
+}
+
+.module-icon .icon-svg {
+    width: 48px;
+    height: 48px;
+    fill: var(--maida-azul);
+    transition: all 0.3s ease;
+}
+
+.module-card:hover .module-icon .icon-svg {
+    fill: var(--maida-rosa);
+    transform: scale(1.1);
 }
 
 .module-card h3 {
@@ -255,8 +270,22 @@ section {
 }
 
 .benefit-icon {
-    font-size: 2.5em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     margin-bottom: 15px;
+    height: 60px;
+}
+
+.benefit-icon .icon-svg {
+    width: 48px;
+    height: 48px;
+    fill: var(--maida-amarelo);
+    transition: all 0.3s ease;
+}
+
+.benefit-card:hover .benefit-icon .icon-svg {
+    transform: scale(1.1);
 }
 
 .benefit-card h3 {
@@ -409,6 +438,31 @@ footer {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Estilos para ícones SVG */
+.icon-svg {
+    display: block;
+    width: 48px;
+    height: 48px;
+    fill: currentColor;
+}
+
+/* Ajustes para melhor responsividade dos ícones */
+@media (max-width: 768px) {
+    .module-icon .icon-svg,
+    .benefit-icon .icon-svg {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .module-icon .icon-svg,
+    .benefit-icon .icon-svg {
+        width: 36px;
+        height: 36px;
+    }
 }
 
 /* Responsividade */

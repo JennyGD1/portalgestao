@@ -4,8 +4,7 @@ const router = express.Router();
 router.get('/estatisticas', async (req, res) => {
     try {
         const processosCollection = req.db.collection('processos');
-        const { producao } = req.query; // Ex: "10/2025"
-
+        const { producao } = req.query; 
         const matchStage = {};
         
         if (producao) {
@@ -129,24 +128,7 @@ router.get('/estatisticas', async (req, res) => {
             },
             {
                 $addFields: {
-                    valorGlosaCalc: {
-                        $cond: {
-                            if: { $gt: ["$vGlosaNum", 0.01] }, 
-                            then: "$vGlosaNum",               
-                            else: {                           
-                                $cond: {
-                                    if: "$isFinalizado",   
-                                    then: {
-                                        $max: [ 
-                                            0, 
-                                            { $subtract: ["$valorApresentadoCalc", "$valorLiberadoCalc"] } 
-                                        ]
-                                    },
-                                    else: 0 
-                                }
-                            }
-                        }
-                    }
+                    valorGlosaCalc: "$vGlosaNum"
                 }
             },
 

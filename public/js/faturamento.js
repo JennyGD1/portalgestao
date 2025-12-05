@@ -27,7 +27,42 @@ function getProducaoFormatada() {
     const [ano, mes] = inputVal.split('-');
     return `${mes}/${ano}`;
 }
+async function carregarDadosAnalise(producao) {
+    try {
+        const resp = await fetch(`${API_BASE_URL}/processos-analisados?producao=${producao}`);
+        const json = await resp.json();
+        
+        if (json.success) {
+            atualizarCardsAnalise(json.data);
+        }
+    } catch (err) {
+        console.error("Erro ao carregar dados de análise:", err);
+    }
+}
 
+function atualizarCardsAnalise(data) {
+    if (!data) return;
+    
+    const {
+        totalProcessos = 0,
+        processosAnalisados = 0
+    } = data;
+    
+    document.getElementById('val-analisados').textContent = 
+        `${processosAnalisados}/${totalProcessos}`;
+    
+    const porcentagem = totalProcessos > 0 ? (processosAnalisados / totalProcessos) * 100 : 0;
+    
+    const progressBar = document.getElementById('analise-progress-bar');
+    const progressText = document.getElementById('analise-progress-text');
+    
+    if (progressBar) {
+        progressBar.style.width = `${porcentagem}%`;
+    }
+    if (progressText) {
+        progressText.textContent = `${porcentagem.toFixed(1)}%`;
+    }
+}
 async function carregarDashboard() {
     showLoading();
     
@@ -42,6 +77,7 @@ async function carregarDashboard() {
             atualizarKPIs(json.data.kpis[0]);
             atualizarStatusCards(json.data.statusStats, json.data.kpis[0]);
             renderizarGraficos(json.data);
+            await carregarDadosAnalise(producao);
         }
 
     } catch (err) {
@@ -132,9 +168,6 @@ function renderizarGraficos(data) {
 
     const bordaPadrao = 4;
 
-    // --------------------------------------------------------
-    // 1. TOP PRESTADORES (VOLUME)
-    // --------------------------------------------------------
     const ctxVol = recriarCanvas('chart-top-volume');
     if (ctxVol && data.topVolume && data.topVolume.length > 0) {
         charts['chart-top-volume'] = new Chart(ctxVol, {
@@ -193,10 +226,6 @@ function renderizarGraficos(data) {
             }
         });
     }
-
-    // --------------------------------------------------------
-    // 2. TOP PRESTADORES (GLOSA)
-    // --------------------------------------------------------
     const ctxGlosa = recriarCanvas('chart-top-glosa');
     if (ctxGlosa && data.topGlosa && data.topGlosa.length > 0) {
         charts['chart-top-glosa'] = new Chart(ctxGlosa, {
@@ -256,9 +285,6 @@ function renderizarGraficos(data) {
         });
     }
 
-    // --------------------------------------------------------
-    // 3. TRATAMENTOS
-    // --------------------------------------------------------
     const ctxTrat = recriarCanvas('chart-tratamento');
     if (ctxTrat && data.tratamentos && data.tratamentos.length > 0) {
         const totalTrat = data.tratamentos.reduce((acc, curr) => acc + (curr.totalValor || 0), 0);
@@ -306,9 +332,6 @@ function renderizarGraficos(data) {
         });
     }
 
-    // --------------------------------------------------------
-    // 4. PRODUTIVIDADE
-    // --------------------------------------------------------
     const ctxProd = recriarCanvas('chart-produtividade');
     if (ctxProd && data.produtividade && data.produtividade.length > 0) {
         charts['chart-produtividade'] = new Chart(ctxProd, {

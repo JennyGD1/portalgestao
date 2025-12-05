@@ -295,12 +295,16 @@ body {
     margin-top: 10px;
     overflow: visible !important;
 }
-
+.chart-container-evolucao {
+    position: relative;
+    height: 350px !important; /* Força a altura */
+    width: 100%;
+    min-height: 350px;
+}
 .chart-container canvas {
     max-width: 100%;
     height: 100% !important;
 }
-
 .chart-container--donut {
     height: var(--altura-grafico-donut);
 }
@@ -416,6 +420,7 @@ body {
     height: 60px;
     animation: spin 1s linear infinite;
 }
+
 
 @keyframes spin {
     0% { transform: rotate(0deg); }

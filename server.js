@@ -23,16 +23,20 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
-        mongoUrl: process.env.MONGODB_URI, 
-        collectionName: 'sessions', 
-        ttl: 24 * 60 * 60
+        mongoUrl: process.env.MONGODB_URI,
+        collectionName: 'sessions',
+        ttl: 24 * 60 * 60,
+        autoRemove: 'native'
     }),
     cookie: {
         maxAge: 24 * 60 * 60 * 1000, 
-        secure: process.env.NODE_ENV === 'production',
+        secure: true, 
         httpOnly: true,
-        sameSite: 'lax'
-    }
+        sameSite: 'none',
+        domain: '.vercel.app' 
+    },
+    proxy: true,
+    name: 'portalgestao.sid'
 }));
 
 const verificarAutenticacao = (req, res, next) => {

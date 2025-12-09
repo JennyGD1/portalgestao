@@ -30,23 +30,26 @@ app.use(session({
     cookie: {
         maxAge: 24 * 60 * 60 * 1000, 
         secure: process.env.NODE_ENV === 'production',
-        httpOnly: true
+        httpOnly: true,
+        sameSite: 'lax'
     }
 }));
 
-app.use(express.static(path.join(__dirname, 'public')));
-
 const verificarAutenticacao = (req, res, next) => {
+    // Se usuário está autenticado, permite acesso
     if (req.session.usuario) {
         return next();
     }
 
     const caminhosPublicos = [
-        '/login',           
-        '/api/auth/login', 
-        '/css/',            
-        '/js/',             
-        '/images/'          
+        '/login',
+        '/api/auth/login',
+        '/logout',
+        '/favicon.ico',
+        '/css/',
+        '/js/',
+        '/images/',
+        '/fonts/'
     ];
 
     const ehPublico = caminhosPublicos.some(caminho => req.path.startsWith(caminho));
@@ -55,11 +58,12 @@ const verificarAutenticacao = (req, res, next) => {
         return next();
     }
 
-
     res.redirect('/login');
 };
 
 app.use(verificarAutenticacao);
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.DB_NAME;
@@ -72,15 +76,24 @@ async function connectToMongoDB() {
         await client.connect();
         console.log('✅ Conectado ao MongoDB');
         db = client.db(DB_NAME);
+        return db;
     } catch (error) {
-        console.error('❌ Erro Mongo:', error);
+        console.error('❌ Erro ao conectar ao MongoDB:', error);
+        throw error;
     }
 }
 
 app.use(async (req, res, next) => {
-    if (!db) await connectToMongoDB();
-    req.db = db;
-    next();
+    try {
+        if (!db) {
+            db = await connectToMongoDB();
+        }
+        req.db = db;
+        next();
+    } catch (error) {
+        console.error('❌ Erro no middleware de conexão:', error);
+        res.status(500).json({ error: 'Erro de conexão com o banco de dados' });
+    }
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -90,23 +103,46 @@ app.post('/api/auth/login', (req, res) => {
     const SENHA_CORRETA = process.env.ADMIN_PASSWORD;
 
     if (usuario === USUARIO_CORRETO && senha === SENHA_CORRETA) {
-        req.session.usuario = { nome: usuario, funcao: 'admin' };
-        return res.json({ success: true });
+        req.session.usuario = { 
+            nome: usuario, 
+            funcao: 'admin',
+            dataLogin: new Date()
+        };
+        return res.json({ 
+            success: true, 
+            usuario: { nome: usuario, funcao: 'admin' }
+        });
     }
 
-    return res.status(401).json({ success: false, erro: 'Credenciais inválidas' });
+    return res.status(401).json({ 
+        success: false, 
+        erro: 'Credenciais inválidas' 
+    });
 });
 
 app.get('/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/login');
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('❌ Erro ao destruir sessão:', err);
+        }
+        res.redirect('/login');
+    });
 });
 
-app.use('/api', regulacaoRoutes);
-app.use('/api/auditoria', auditoriaRoutes);
-app.use('/api/faturamento', faturamentoRoutes);
+app.get('/api/auth/status', (req, res) => {
+    if (req.session.usuario) {
+        return res.json({ 
+            autenticado: true, 
+            usuario: req.session.usuario 
+        });
+    }
+    return res.json({ autenticado: false });
+});
 
 app.get('/login', (req, res) => {
+    if (req.session.usuario) {
+        return res.redirect('/');
+    }
     res.sendFile(path.join(__dirname, 'public', 'html', 'login.html'));
 });
 
@@ -122,9 +158,22 @@ app.get('/faturamento', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'html', 'faturamento.html'));
 });
 
+app.use('/api', regulacaoRoutes);
+app.use('/api/auditoria', auditoriaRoutes);
+app.use('/api/faturamento', faturamentoRoutes);
+
+app.get('*', (req, res) => {
+    if (req.session.usuario) {
+        return res.redirect('/');
+    }
+    res.redirect('/login');
+});
+
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
-        console.log(`🚀 Rodando localmente na porta ${PORT}`);
+        console.log(` Servidor rodando localmente na porta ${PORT}`);
+        console.log(` Pasta pública: ${path.join(__dirname, 'public')}`);
+        console.log(` Ambiente: ${process.env.NODE_ENV || 'development'}`);
     });
 }
 

@@ -11,13 +11,14 @@ const auditoriaRoutes = require('./routes/auditoria.routes');
 const faturamentoRoutes = require('./routes/faturamento.routes');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.set('trust proxy', 1);
 
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -57,13 +58,9 @@ const verificarAutenticacao = (req, res, next) => {
         '/api/regulacao/',
         '/api/auditoria/',
         '/api/faturamento/',
-        '/css/',
-        '/js/',
-        '/img/',
-        '/images/',
-        '/fonts/',
-        '/favicon.ico',
-        '/favicon.png'
+        '/teste',
+        '/api/teste',
+        '/api/teste-db'
     ];
     
     const ehPublico = caminhosPublicos.some(caminho => req.path.startsWith(caminho));
@@ -81,19 +78,54 @@ app.use(verificarAutenticacao);
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.DB_NAME;
 let db;
+let client;
 
 async function connectToMongoDB() {
     if (db) return db;
-    const client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    db = client.db(DB_NAME);
-    return db;
+    try {
+        client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        db = client.db(DB_NAME);
+        console.log('✅ MongoDB conectado');
+        return db;
+    } catch (error) {
+        console.error('❌ Erro ao conectar MongoDB:', error);
+        throw error;
+    }
 }
 
 app.use(async (req, res, next) => {
-    if (!db) await connectToMongoDB();
-    req.db = db;
-    next();
+    try {
+        if (!db) await connectToMongoDB();
+        req.db = db;
+        next();
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            error: 'Erro de conexão com o banco de dados' 
+        });
+    }
+});
+
+app.get('/teste', (req, res) => {
+    res.json({ message: 'API online no Vercel' });
+});
+
+app.get('/api/teste', (req, res) => {
+    res.json({ message: 'API teste funcionando' });
+});
+
+app.get('/api/teste-db', async (req, res) => {
+    try {
+        const collections = await req.db.listCollections().toArray();
+        res.json({ 
+            success: true, 
+            collections: collections.map(c => c.name),
+            db: DB_NAME
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -155,10 +187,9 @@ app.get('*', (req, res) => {
     res.redirect('/login');
 });
 
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, () => {
-        console.log(`Servidor rodando na porta ${PORT}`);
-    });
-}
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
 
 module.exports = app;

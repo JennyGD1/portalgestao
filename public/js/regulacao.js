@@ -568,14 +568,14 @@ function criarGraficosSLA(data) {
                 }]
             },
             options: {
-                indexAxis: 'y', // <-- Barra Horizontal
+                indexAxis: 'y', 
                 responsive: true, maintainAspectRatio: false,
                 scales: { 
                     x: { 
-                        display: false, // Remove legenda numérica e grid
+                        display: false, 
                         beginAtZero: true, 
-                        max: 100 // Removida a vírgula e o objeto 'title'
-                    } // Fechamento do eixo 'x'
+                        max: 100 
+                    } 
                 },
                 plugins: {
                     legend: { display: false },
@@ -600,87 +600,48 @@ function criarGraficosSLA(data) {
             data: {
                 labels: labelsRegulador,
                 datasets: [
-                    { label: 'Dentro SLA', data: topReguladores.map(item => item.dentroSLA), backgroundColor: COR_AZUL },
-                    { label: 'Fora SLA', data: topReguladores.map(item => item.foraSLA), backgroundColor: COR_ROSA }
+                    { 
+                        label: 'Total de Guias', 
+                        data: topReguladores.map(item => item.total), 
+                        backgroundColor: COR_AZUL,
+                        borderRadius: 4
+                    }
                 ]
             },
             options: {
-                indexAxis: 'y',
+                indexAxis: 'y', 
                 responsive: true, 
                 maintainAspectRatio: false,
                 scales: { 
                     x: { 
-                        stacked: true, 
-                        display: false, // Remove completamente o eixo X (numerações)
-                        grid: {
-                            display: false // Remove grid horizontal
-                        }
+                        display: false, 
+                        grid: { display: false }
                     }, 
                     y: { 
-                        stacked: true,
-                        grid: {
-                            display: false // Remove grid vertical
-                        }
+                        grid: { display: false }
                     } 
                 },
                 plugins: {
-                    legend: { 
-                        position: 'bottom',
-                        labels: {
-                            boxWidth: 12,
-                            padding: 15,
-                            font: {
-                                size: 12
-                            }
-                        }
-                    },
+                    legend: { display: false },
                     datalabels: {
-                        display: (context) => {
-                            const value = context.dataset.data[context.dataIndex];
-                            const datasetIndex = context.datasetIndex;
-                            
-                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
-
-                            if (datasetIndex === 0) {
-                                return valorRosa > 0 ? value > 15 : value > 0;
-                            }
-                            return value > 0;
-                        },
+                        display: true,
                         color: (context) => {
                             const value = context.dataset.data[context.dataIndex];
-                            const datasetIndex = context.datasetIndex;
-                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
-                            
-                            if (datasetIndex === 0 && valorRosa > 0) return '#ffffff'; 
-                            return value < 100 ? '#333333' : '#ffffff';
+                            return value < 100 ? '#000000' : '#ffffff';
                         },
-                        anchor: (context) => {
-                            const value = context.dataset.data[context.dataIndex];
-                            const datasetIndex = context.datasetIndex;
-                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
-
-                            if (datasetIndex === 0 && valorRosa > 0) return 'center';
-                            return value < 100 ? 'end' : 'center';
-                        },
+                        anchor: 'end',
                         align: (context) => {
                             const value = context.dataset.data[context.dataIndex];
-                            const datasetIndex = context.datasetIndex;
-                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
-
-                            if (datasetIndex === 0 && valorRosa > 0) return 'center';
-                            return value < 100 ? 'end' : 'center';
+                            return value < 100 ? 'end' : 'start';
                         },
-                        offset: (context) => {
-                            const value = context.dataset.data[context.dataIndex];
-                            const datasetIndex = context.datasetIndex;
-                            const valorRosa = context.chart.data.datasets[1].data[context.dataIndex];
-                            
-                            const estaDoLadoDeFora = (datasetIndex === 1 && value < 100) || (datasetIndex === 0 && valorRosa === 0 && value < 100);
-                            
-                            return estaDoLadoDeFora ? 4 : 0;
-                        },
-                        font: { weight: 'bold', size: 10 },
+                        offset: 4,
+                        font: { weight: 'bold', size: 11 },
                         formatter: (value) => value.toLocaleString()
+                    }
+                },
+                layout: {
+                    padding: {
+                        right: 40 
                     }
                 }
             },
@@ -689,16 +650,13 @@ function criarGraficosSLA(data) {
     }
     if (data.comparativoIA) {
         
-        // 1. Atualizar Cards de Share
         document.getElementById('share-ymir-val').textContent = data.comparativoIA.share.ymir + '%';
         document.getElementById('share-gabriel-val').textContent = data.comparativoIA.share.gabriel + '%';
         document.getElementById('share-outros-val').textContent = data.comparativoIA.share.outros + '%';
 
-        // 2. Renderizar Gráfico de Linhas
         const timeline = data.comparativoIA.timeline || [];
         const ctxIA = recriarCanvasSLA('grafico-ia-comparativo', 'chart-wrapper-ia-compare').getContext('2d');
         
-        // Formatar datas para o eixo X
         const labelsTimeline = timeline.map(t => {
             const d = new Date(t.data);
             return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
@@ -721,7 +679,7 @@ function criarGraficosSLA(data) {
                     {
                         label: 'Robô',
                         data: timeline.map(t => t.gabriel),
-                        borderColor: '#2980b9', // Azul Escuro
+                        borderColor: '#2980b9', 
                         backgroundColor: '#2980b9',
                         tension: 0.3,
                         borderWidth: 3,
@@ -730,9 +688,9 @@ function criarGraficosSLA(data) {
                     {
                         label: 'Demais Reguladores',
                         data: timeline.map(t => t.outros),
-                        borderColor: '#bdc3c7', // Cinza Claro
+                        borderColor: '#bdc3c7',
                         backgroundColor: '#bdc3c7',
-                        borderDash: [5, 5], // Linha tracejada para diferenciar
+                        borderDash: [5, 5], 
                         tension: 0.3,
                         borderWidth: 2,
                         pointRadius: 2
@@ -787,7 +745,6 @@ function recriarCanvas(id) {
 }
 
 function criarGraficos(stats) {
-    // Destrói instâncias anteriores
     if (topPrestadoresChart) topPrestadoresChart.destroy();
     if (tiposGuiaChart) tiposGuiaChart.destroy();
     if (topNegadosChart) topNegadosChart.destroy();
@@ -855,14 +812,14 @@ function criarGraficos(stats) {
                         font: { weight: 'bold', size: 12 },
                         formatter: (value) => formatCurrency(value),
                         padding: {
-                            right: 25 // AUMENTEI O PADDING
+                            right: 25 
                         },
-                        clip: false // IMPEDE QUE OS VALORES SEJAM CORTADOS
+                        clip: false 
                     }
                 },
                 layout: {
                     padding: {
-                        right: 60 // AUMENTEI MUITO O PADDING À DIREITA
+                        right: 60 
                     }
                 }
             },
@@ -884,7 +841,6 @@ function criarGraficos(stats) {
         const dadosTipos = stats.topTiposGuia.map(item => parseFloat(item.totalNegado || 0));
         const total = dadosTipos.reduce((sum, value) => sum + value, 0);
 
-        // Cores para o gráfico
         const cores = [
             '#0070ff', '#ff0073', '#ffcc00', '#34c759', '#5856d6',
             '#ff9500', '#ff2d55', '#5ac8fa', '#4cd964', '#ff3b30'
@@ -922,7 +878,6 @@ function criarGraficos(stats) {
                         display: false
                     }
                 },
-                // ALTERAÇÃO 1: Aumentamos o padding drasticamente para dar espaço aos textos distantes
                 layout: {
                     padding: {
                         top: 100,
@@ -935,7 +890,6 @@ function criarGraficos(stats) {
             plugins: [ChartDataLabels]
         });
 
-        // Função para desenhar as setas e legendas DISTRIBUÍDAS
         function desenharSetasLegendasDistribuidas(chart) {
             const ctx = chart.ctx;
             const meta = chart.getDatasetMeta(0);
@@ -949,7 +903,6 @@ function criarGraficos(stats) {
             const centerY = chart.chartArea.top + (chart.chartArea.height / 2);
             const radius = Math.min(chart.chartArea.width, chart.chartArea.height) / 2;
 
-            // Mapeamento de cores para quadrantes específicos
             const quadrantesPorCor = {
                 '#ff0073': 'esquerda-inferior',    // Rosa
                 '#ffcc00': 'esquerda-superior',    // Amarelo  
@@ -957,25 +910,24 @@ function criarGraficos(stats) {
                 '#0070ff': 'direita-inferior'      // Azul
             };
 
-            // Posições base por quadrante (aumentei o espaçamento para textos longos)
             const posicoesQuadrantes = {
                 'esquerda-superior': { 
-                    x: centerX - 250,  // Aumentei de 230 para 250
+                    x: centerX - 250,  
                     y: centerY - 160,
                     textAlign: 'right'
                 },
                 'esquerda-inferior': { 
-                    x: centerX - 250,  // Aumentei de 230 para 250
+                    x: centerX - 250,  
                     y: centerY + 160,
                     textAlign: 'right'
                 },
                 'direita-superior': { 
-                    x: centerX + 250,  // Aumentei de 230 para 250
+                    x: centerX + 250,  
                     y: centerY - 160,
                     textAlign: 'left'
                 },
                 'direita-inferior': { 
-                    x: centerX + 250,  // Aumentei de 230 para 250
+                    x: centerX + 250,  
                     y: centerY + 160,
                     textAlign: 'left'
                 }
@@ -988,65 +940,52 @@ function criarGraficos(stats) {
                 const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
                 const color = chart.data.datasets[0].backgroundColor[index];
 
-                // Ângulo central
                 const angle = model.startAngle + (model.endAngle - model.startAngle) / 2;
 
-                // Ponto de saída na borda do gráfico
                 const pointX = centerX + Math.cos(angle) * (radius + 5);
                 const pointY = centerY + Math.sin(angle) * (radius + 5);
 
-                // Determina o quadrante baseado na cor
                 const quadrante = quadrantesPorCor[color] || 'direita-superior';
                 const posicao = posicoesQuadrantes[quadrante];
                 
                 let textX = posicao.x;
                 let textY = posicao.y;
 
-                // --- DESENHO ---
                 
-                // 1. Linha
                 ctx.beginPath();
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 2;
                 ctx.moveTo(pointX, pointY);
 
-                // Linha com cotovelo para o quadrante designado
                 if (quadrante.includes('esquerda')) {
-                    // Para esquerda: vai horizontal primeiro depois vertical
-                    ctx.lineTo(textX + 25, pointY);  // Aumentei de 20 para 25
+                    ctx.lineTo(textX + 25, pointY);  
                     ctx.lineTo(textX + 25, textY);
                 } else {
-                    // Para direita: vai horizontal primeiro depois vertical  
-                    ctx.lineTo(textX - 25, pointY);  // Aumentei de 20 para 25
+                    ctx.lineTo(textX - 25, pointY);  
                     ctx.lineTo(textX - 25, textY);
                 }
                 ctx.stroke();
 
-                // 2. Bolinha na ponta
                 ctx.beginPath();
                 ctx.arc(textX, textY, 4, 0, 2 * Math.PI);
                 ctx.fillStyle = color;
                 ctx.fill();
 
-                // 3. Texto - Reduzi um pouco a fonte para caber textos longos
                 ctx.textAlign = posicao.textAlign;
                 const textPadding = posicao.textAlign === 'left' ? 10 : -10;
 
                 ctx.fillStyle = '#333';
                 
-                // Nome da categoria (Negrito) - Fonte um pouco menor
-                ctx.font = 'bold 14px Arial';  // Reduzi de 11 para 10
+                ctx.font = 'bold 14px Arial';  
                 ctx.fillText(`${label}`, textX + textPadding, textY - 7);
                 
-                // Porcentagem (Normal)
-                ctx.font = '14px Arial';  // Reduzi de 11 para 10
+                ctx.font = '14px Arial';  
                 ctx.fillText(`${percent}%`, textX + textPadding, textY + 7);
             });
 
             ctx.restore();
         }
 
-        // Adiciona o plugin personalizado para desenhar as setas
         Chart.register({
             id: 'setasLegendasDistribuidas',
             afterDraw: function(chart) {
@@ -1124,14 +1063,14 @@ function criarGraficos(stats) {
                         font: { weight: 'bold', size: 12 },
                         formatter: (value) => formatCurrency(value),
                         padding: {
-                            right: 10 // AUMENTEI O PADDING
+                            right: 10
                         },
-                        clip: false // IMPEDE QUE OS VALORES SEJAM CORTADOS
+                        clip: false 
                     }
                 },
                 layout: {
                     padding: {
-                        right: 100 // AUMENTEI MUITO O PADDING À DIREITA
+                        right: 100 
                     }
                 }
             },
@@ -1318,7 +1257,7 @@ function fecharModal() {
     modal.classList.remove('show');
     setTimeout(() => {
         modal.style.display = 'none';
-    }, 300); // Espera a animação terminar
+    }, 300); 
 }
 function filtrarGuias() {
     const termoBusca = document.getElementById('search-guia').value.toLowerCase().trim();
@@ -1349,13 +1288,11 @@ function exportarParaCSV() {
         guiasData.forEach(guia => {
             const baseRow = `\"${guia.numeroGuiaOperadora}\";\"${guia.prestadorNome}\";\"${guia.tipoGuia || 'N/A'}\";\"${guia.dataRegulacao}\";\"${guia.status}\";\"${guia.totalNegado}\"`;
             
-            // Esta parte também depende de 'itensGuia'
             if (guia.itensGuia && guia.itensGuia.length > 0) {
                 guia.itensGuia.forEach(item => {
                     csvContent += `${baseRow};\"${item.codigo}\";\"${item.descricao}\";\"${item.quantSolicitada || 0}\";\"${item.quantAutorizada || 0}\";\"${item.quantNegada || 0}\";\"${item.valorUnitario || 0}\";\"${item.valorTotalNegado || 0}\"\n`;
                 });
             } else {
-                // Exporta a guia mesmo sem itens (opcional)
                 csvContent += `${baseRow};"N/A";"N/A";"0";"0";"0";"0";"0"\n`;
             }
         });
@@ -1377,7 +1314,6 @@ function exportarParaCSV() {
 
 // --- Inicialização e Event Listeners ---
 
-// Define as datas padrão
 const today = new Date();
 const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1); 
 
@@ -1387,14 +1323,11 @@ const formatDate = (d) => d.toISOString().split('T')[0];
 document.getElementById('start-date-filter').value = formatDate(currentMonthStart);
 document.getElementById('end-date-filter').value = formatDate(today);
 
-// Carrega os dados iniciais
 carregarDados();
 
-// Adiciona os listeners aos botões e filtros
 document.getElementById('export-btn').addEventListener('click', exportarParaCSV);
 document.getElementById('refresh-btn').addEventListener('click', carregarDados);
 
-// Listener do Modal
 closeModalBtn.addEventListener('click', () => {
     detailsModal.style.display = 'none';
 });

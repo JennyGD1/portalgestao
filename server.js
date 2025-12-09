@@ -3,8 +3,8 @@ const express = require('express');
 const { MongoClient } = require('mongodb');
 const cors = require('cors');
 const path = require('path');
-const session = require('express-session');
-const MongoStore = require('connect-mongo');
+const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 
 const regulacaoRoutes = require('./routes/regulacao.routes');
 const auditoriaRoutes = require('./routes/auditoria.routes');
@@ -13,59 +13,55 @@ const faturamentoRoutes = require('./routes/faturamento.routes');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.set('trust proxy', 1);
-
-app.use(cors({
-    origin: true,
-    credentials: true
-}));
-
+// Configurações
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.set('trust proxy', 1);
 
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'segredo_padrao_muito_seguro',
-    resave: true,
-    saveUninitialized: true,
-    store: MongoStore.create({
-        mongoUrl: process.env.MONGODB_URI,
-        collectionName: 'sessions',
-        ttl: 24 * 60 * 60,
-        autoRemove: 'native'
-    }),
-    cookie: {
-        maxAge: 24 * 60 * 60 * 1000,
-        secure: true,
-        httpOnly: true,
-        sameSite: 'lax'
-    },
-    proxy: true,
-    name: 'portal.sid',
-    rolling: true
-}));
+const SECRET_KEY = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const MAX_AGE = 24 * 60 * 60 * 1000; // 24 horas
 
 const verificarAutenticacao = (req, res, next) => {
-    if (req.session.usuario) {
-        return next();
+    const token = req.cookies.auth_token;
+    
+    if (token) {
+        try {
+            const [usuario, timestamp, assinatura] = token.split('|');
+            const expectedSignature = crypto
+                .createHmac('sha256', SECRET_KEY)
+                .update(`${usuario}|${timestamp}`)
+                .digest('hex');
+            
+            if (assinatura === expectedSignature && 
+                Date.now() - parseInt(timestamp) < MAX_AGE) {
+                
+                req.usuario = usuario;
+                return next();
+            }
+        } catch (error) {
+            // Token inválido
+        }
     }
-
+    
     const caminhosPublicos = [
         '/login',
         '/api/auth/login',
-        '/logout',
-        '/favicon.ico',
         '/css/',
         '/js/',
         '/images/',
-        '/fonts/'
+        '/fonts/',
+        '/favicon.ico'
     ];
-
+    
     const ehPublico = caminhosPublicos.some(caminho => req.path.startsWith(caminho));
-
+    
     if (ehPublico) {
         return next();
     }
-
+    
+    // Não autenticado → redireciona para login
     res.redirect('/login');
 };
 
@@ -81,6 +77,7 @@ async function connectToMongoDB() {
         if (db) return db;
         const client = new MongoClient(MONGODB_URI);
         await client.connect();
+        console.log('Conectado ao MongoDB');
         db = client.db(DB_NAME);
         return db;
     } catch (error) {
@@ -97,7 +94,6 @@ app.use(async (req, res, next) => {
         req.db = db;
         next();
     } catch (error) {
-        console.error('Erro no middleware de conexão:', error);
         res.status(500).json({ error: 'Erro de conexão com o banco de dados' });
     }
 });
@@ -105,55 +101,56 @@ app.use(async (req, res, next) => {
 app.post('/api/auth/login', (req, res) => {
     const { usuario, senha } = req.body;
     
-    const USUARIO_CORRETO = process.env.ADMIN_USER;
-    const SENHA_CORRETA = process.env.ADMIN_PASSWORD;
-
+    const USUARIO_CORRETO = process.env.ADMIN_USER || 'admin';
+    const SENHA_CORRETA = process.env.ADMIN_PASSWORD || 'senha123';
+    
     if (usuario === USUARIO_CORRETO && senha === SENHA_CORRETA) {
-        req.session.usuario = { 
-            nome: usuario, 
-            funcao: 'admin',
-            dataLogin: new Date()
-        };
+        const timestamp = Date.now();
+        const data = `${usuario}|${timestamp}`;
+        const assinatura = crypto
+            .createHmac('sha256', SECRET_KEY)
+            .update(data)
+            .digest('hex');
         
-        req.session.save((err) => {
-            if (err) {
-                return res.status(500).json({ success: false, erro: 'Erro interno' });
-            }
-            
-            return res.json({ 
-                success: true, 
-                usuario: { nome: usuario, funcao: 'admin' }
-            });
+        const token = `${data}|${assinatura}`;
+        
+        res.cookie('auth_token', token, {
+            maxAge: MAX_AGE,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax'
         });
-    } else {
-        return res.status(401).json({ 
-            success: false, 
-            erro: 'Credenciais inválidas' 
+        
+        return res.json({ 
+            success: true, 
+            usuario: usuario 
         });
     }
+    
+    return res.status(401).json({ 
+        success: false, 
+        erro: 'Credenciais inválidas' 
+    });
+});
+
+app.get('/logout', (req, res) => {
+    res.clearCookie('auth_token');
+    res.redirect('/login');
 });
 
 app.get('/api/auth/status', (req, res) => {
-    if (req.session.usuario) {
+    if (req.usuario) {
         return res.json({ 
             autenticado: true, 
-            usuario: req.session.usuario 
+            usuario: req.usuario 
         });
     }
     return res.json({ autenticado: false });
 });
 
-app.get('/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            console.error('Erro ao destruir sessão:', err);
-        }
-        res.redirect('/login');
-    });
-});
-
+// Rotas para páginas HTML
 app.get('/login', (req, res) => {
-    if (req.session.usuario) {
+    if (req.usuario) {
         return res.redirect('/');
     }
     res.sendFile(path.join(__dirname, 'public', 'html', 'login.html'));
@@ -176,7 +173,7 @@ app.use('/api/auditoria', auditoriaRoutes);
 app.use('/api/faturamento', faturamentoRoutes);
 
 app.get('*', (req, res) => {
-    if (req.session.usuario) {
+    if (req.usuario) {
         return res.redirect('/');
     }
     res.redirect('/login');
@@ -184,7 +181,7 @@ app.get('*', (req, res) => {
 
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
-        console.log(`Servidor rodando localmente na porta ${PORT}`);
+        console.log(`Servidor rodando na porta ${PORT}`);
     });
 }
 

@@ -19,6 +19,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('trust proxy', 1);
 
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+});
+
 const SECRET_KEY = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const MAX_AGE = 24 * 60 * 60 * 1000;
 
@@ -40,6 +45,7 @@ const verificarAutenticacao = (req, res, next) => {
                 return next();
             }
         } catch (error) {
+            console.error('Erro na verificação do token:', error);
         }
     }
     
@@ -48,14 +54,16 @@ const verificarAutenticacao = (req, res, next) => {
         '/api/auth/login',
         '/logout',
         '/api/auth/status',
+        '/api/regulacao/',
+        '/api/auditoria/',
+        '/api/faturamento/',
         '/css/',
         '/js/',
         '/img/',
         '/images/',
         '/fonts/',
         '/favicon.ico',
-        '/favicon.png',
-        '/api/regulacao/'
+        '/favicon.png'
     ];
     
     const ehPublico = caminhosPublicos.some(caminho => req.path.startsWith(caminho));

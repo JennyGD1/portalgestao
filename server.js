@@ -15,16 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
-app.use((req, res, next) => {
-    console.log('🔍 DEBUG:', {
-        path: req.path,
-        sessionId: req.sessionID,
-        usuario: req.session.usuario,
-        secure: req.secure,
-        headers: req.headers['x-forwarded-proto']
-    });
-    next();
-});
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -49,7 +40,16 @@ app.use(session({
     proxy: true,
     name: 'portalgestao.sid'
 }));
-
+app.use((req, res, next) => {
+    console.log('🔍 DEBUG:', {
+        path: req.path,
+        sessionId: req.sessionID,
+        usuario: req.session.usuario,
+        secure: req.secure,
+        headers: req.headers['x-forwarded-proto']
+    });
+    next();
+});
 const verificarAutenticacao = (req, res, next) => {
     // Se usuário está autenticado, permite acesso
     if (req.session.usuario) {

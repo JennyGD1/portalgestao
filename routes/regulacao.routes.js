@@ -267,7 +267,6 @@ router.get('/sla-tempo-real', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-module.exports = router;
 router.get('/guias-negadas', async (req, res) => {
     try {
         console.log('🔍 Buscando guias negadas com filtros...');

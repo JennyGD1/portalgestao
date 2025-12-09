@@ -4,96 +4,128 @@ const { MongoClient } = require('mongodb');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const session = require('express-session');
+const MongoStore = require('connect-mongo'); 
 
-// --- IMPORTAÇÃO DAS ROTAS ---
 const regulacaoRoutes = require('./routes/regulacao.routes');
 const auditoriaRoutes = require('./routes/auditoria.routes');
-const faturamentoRoutes = require('./routes/faturamento.routes'); 
+const faturamentoRoutes = require('./routes/faturamento.routes');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'segredo_padrao_muito_seguro',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI, 
+        collectionName: 'sessions', 
+        ttl: 24 * 60 * 60
+    }),
+    cookie: {
+        maxAge: 24 * 60 * 60 * 1000, 
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true
+    }
+}));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- CONFIGURAÇÃO MONGODB ---
+const verificarAutenticacao = (req, res, next) => {
+    if (req.session.usuario) {
+        return next();
+    }
+
+    const caminhosPublicos = [
+        '/login',           
+        '/api/auth/login', 
+        '/css/',            
+        '/js/',             
+        '/images/'          
+    ];
+
+    const ehPublico = caminhosPublicos.some(caminho => req.path.startsWith(caminho));
+
+    if (ehPublico) {
+        return next();
+    }
+
+
+    res.redirect('/login');
+};
+
+app.use(verificarAutenticacao);
+
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.DB_NAME;
-
 let db;
 
 async function connectToMongoDB() {
     try {
+        if (db) return db;
         const client = new MongoClient(MONGODB_URI);
         await client.connect();
         console.log('✅ Conectado ao MongoDB');
         db = client.db(DB_NAME);
     } catch (error) {
-        console.error('❌ Erro ao conectar ao MongoDB:', error);
-        process.exit(1);
+        console.error('❌ Erro Mongo:', error);
     }
 }
 
-app.use((req, res, next) => {
-    if (!db) {
-        return res.status(500).json({ error: 'Conexão com banco de dados não estabelecida.' });
-    }
+app.use(async (req, res, next) => {
+    if (!db) await connectToMongoDB();
     req.db = db;
     next();
 });
 
-// --- DEFINIÇÃO DE ROTAS (API) ---
+app.post('/api/auth/login', (req, res) => {
+    const { usuario, senha } = req.body;
+    
+    const USUARIO_CORRETO = process.env.ADMIN_USER;
+    const SENHA_CORRETA = process.env.ADMIN_PASSWORD;
 
-// 1. Rotas de Regulação (/api/guias-negadas, etc)
+    if (usuario === USUARIO_CORRETO && senha === SENHA_CORRETA) {
+        req.session.usuario = { nome: usuario, funcao: 'admin' };
+        return res.json({ success: true });
+    }
+
+    return res.status(401).json({ success: false, erro: 'Credenciais inválidas' });
+});
+
+app.get('/logout', (req, res) => {
+    req.session.destroy();
+    res.redirect('/login');
+});
+
 app.use('/api', regulacaoRoutes);
-
-// 2. Rotas de Auditoria (/api/auditoria/dashboard)
 app.use('/api/auditoria', auditoriaRoutes);
+app.use('/api/faturamento', faturamentoRoutes);
 
-// 3. Rotas de Faturamento (/api/faturamento/estatisticas)
-app.use('/api/faturamento', faturamentoRoutes); // <--- 2. REGISTRAR AQUI
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'html', 'login.html'));
+});
 
-// --- ROTAS DE FRONTEND (HTML) ---
-
-// Rota Principal (Regulação)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'html', 'index.html'));
 });
 
-// Rota Auditoria
 app.get('/auditoria', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'html', 'auditoria.html'));
 });
 
-// Rota Faturamento (Para acessar http://localhost:3000/faturamento)
-app.get('/faturamento', (req, res) => { // <--- 3. ROTA FRONTEND (OPCIONAL MAS RECOMENDADO)
+app.get('/faturamento', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'html', 'faturamento.html'));
 });
 
-// Rota de fallback para arquivos .html diretos
-app.get('/html/regulacao.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'html', 'regulacao.html'));
-});
-
-// --- INICIALIZAÇÃO ---
-
-async function startServer() {
-    const publicPath = path.join(__dirname, 'public');
-    if (!fs.existsSync(publicPath)) {
-        fs.mkdirSync(publicPath);
-        console.log(`📁 Criada a pasta 'public'.`);
-    }
-
-    await connectToMongoDB();
-
+if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
-        console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
-        console.log(`📊 Dashboard Regulação: http://localhost:${PORT}`);
-        console.log(`📋 Dashboard Auditoria: http://localhost:${PORT}/auditoria`);
-        console.log(`💰 Dashboard Faturamento: http://localhost:${PORT}/faturamento`);
+        console.log(`🚀 Rodando localmente na porta ${PORT}`);
     });
 }
 
-startServer();
+module.exports = app;

@@ -54,7 +54,8 @@ const verificarAutenticacao = (req, res, next) => {
         '/images/',
         '/fonts/',
         '/favicon.ico',
-        '/favicon.png'
+        '/favicon.png',
+        '/api/regulacao/'
     ];
     
     const ehPublico = caminhosPublicos.some(caminho => req.path.startsWith(caminho));

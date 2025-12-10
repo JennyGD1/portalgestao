@@ -604,7 +604,8 @@ function criarGraficosSLA(data) {
                         label: 'Total de Guias', 
                         data: topReguladores.map(item => item.total), 
                         backgroundColor: COR_AZUL,
-                        borderRadius: 4
+                        borderRadius: 4,
+                        barPercentage: 0.7 
                     }
                 ]
             },
@@ -618,30 +619,34 @@ function criarGraficosSLA(data) {
                         grid: { display: false }
                     }, 
                     y: { 
-                        grid: { display: false }
+                        grid: { display: false },
+                        ticks: {
+                            font: { size: 11 },
+                            callback: function(value) {
+                                const label = this.getLabelForValue(value);
+                                if (label.length > 25) {
+                                    return label.substring(0, 25) + '...';
+                                }
+                                return label;
+                            }
+                        }
                     } 
                 },
                 plugins: {
                     legend: { display: false },
                     datalabels: {
                         display: true,
-                        color: (context) => {
-                            const value = context.dataset.data[context.dataIndex];
-                            return value < 100 ? '#000000' : '#ffffff';
-                        },
-                        anchor: 'end',
-                        align: (context) => {
-                            const value = context.dataset.data[context.dataIndex];
-                            return value < 100 ? 'end' : 'start';
-                        },
-                        offset: 4,
+                        color: '#000000', 
+                        anchor: 'end',   
+                        align: 'end',   
+                        offset: 4,      
                         font: { weight: 'bold', size: 11 },
                         formatter: (value) => value.toLocaleString()
                     }
                 },
                 layout: {
                     padding: {
-                        right: 40 
+                        right: 60 
                     }
                 }
             },

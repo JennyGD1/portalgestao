@@ -149,7 +149,7 @@ async function carregarSLAEmTempoReal() {
     timeLabel.textContent = `Atualizado em: ${agora.toLocaleTimeString()}`;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/sla-tempo-real`);
+        const response = await fetch((`${API_BASE_URL}/sla-tempo-real`), { credentials: 'include' });
         const result = await response.json();
 
         if (result.success) {

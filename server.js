@@ -20,7 +20,7 @@ app.use((req, res, next) => {
     next();
 });
 
-const SECRET_KEY = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const SECRET_KEY = process.env.SESSION_SECRET || 'chave_secreta_fixa_para_desenvolvimento_123456';
 const MAX_AGE = 24 * 60 * 60 * 1000;
 
 const verificarAutenticacao = (req, res, next) => {
@@ -47,10 +47,6 @@ const verificarAutenticacao = (req, res, next) => {
         '/login',
         '/api/auth/login',
         '/logout',
-        '/api/auth/status',
-        '/api/regulacao/',
-        '/api/auditoria/',
-        '/api/faturamento/',
         '/css/',
         '/js/',
         '/img/',
@@ -66,7 +62,8 @@ const verificarAutenticacao = (req, res, next) => {
         return next();
     }
     if (req.path.startsWith('/api/')) {
-        return res.status(401).json({ success: false, error: 'Não autorizado ou sessão expirada' });
+        res.clearCookie('auth_token'); 
+        return res.status(401).json({ success: false, error: 'Sessão expirada ou inválida' });
     }
     res.redirect('/login');
 };

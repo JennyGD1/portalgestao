@@ -29,7 +29,7 @@ function getProducaoFormatada() {
 }
 async function carregarDadosAnalise(producao) {
     try {
-        const resp = await fetch(`${API_BASE_URL}/processos-analisados?producao=${producao}`);
+        const resp = await fetch(`${API_BASE_URL}/processos-analisados?producao=${producao}`, { credentials: 'include' });
         const json = await resp.json();
         
         if (json.success) {
@@ -70,7 +70,7 @@ async function carregarDashboard() {
     console.log("🔍 Buscando produção:", producao);
 
     try {
-        const resp = await fetch(`${API_BASE_URL}/estatisticas?producao=${producao}`);
+        const resp = await fetch(`${API_BASE_URL}/estatisticas?producao=${producao}`, { credentials: 'include' });
         const json = await resp.json();
         
         if (json.success) {
@@ -168,6 +168,9 @@ function renderizarGraficos(data) {
 
     const bordaPadrao = 4;
 
+    // --------------------------------------------------------
+    // 1. TOP PRESTADORES (VOLUME)
+    // --------------------------------------------------------
     const ctxVol = recriarCanvas('chart-top-volume');
     if (ctxVol && data.topVolume && data.topVolume.length > 0) {
         charts['chart-top-volume'] = new Chart(ctxVol, {
@@ -226,6 +229,10 @@ function renderizarGraficos(data) {
             }
         });
     }
+
+    // --------------------------------------------------------
+    // 2. TOP PRESTADORES (GLOSA)
+    // --------------------------------------------------------
     const ctxGlosa = recriarCanvas('chart-top-glosa');
     if (ctxGlosa && data.topGlosa && data.topGlosa.length > 0) {
         charts['chart-top-glosa'] = new Chart(ctxGlosa, {
@@ -285,6 +292,9 @@ function renderizarGraficos(data) {
         });
     }
 
+    // --------------------------------------------------------
+    // 3. TRATAMENTOS
+    // --------------------------------------------------------
     const ctxTrat = recriarCanvas('chart-tratamento');
     if (ctxTrat && data.tratamentos && data.tratamentos.length > 0) {
         const totalTrat = data.tratamentos.reduce((acc, curr) => acc + (curr.totalValor || 0), 0);
@@ -332,6 +342,9 @@ function renderizarGraficos(data) {
         });
     }
 
+    // --------------------------------------------------------
+    // 4. PRODUTIVIDADE
+    // --------------------------------------------------------
     const ctxProd = recriarCanvas('chart-produtividade');
     if (ctxProd && data.produtividade && data.produtividade.length > 0) {
         charts['chart-produtividade'] = new Chart(ctxProd, {

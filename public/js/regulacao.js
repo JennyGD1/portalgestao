@@ -2,7 +2,7 @@
 Chart.register(ChartDataLabels);
 
 // --- Configurações Globais ---
-const API_BASE_URL = '/api';
+const API_BASE_URL = '/api/regulacao';
 let guiasData = [];
 const loadingOverlay = document.getElementById('loading-overlay');
 

@@ -70,7 +70,7 @@ async function carregarDados() {
 
     try {
         // 1. Busca estatísticas
-        const statsResponse = await fetch(`${API_BASE_URL}/estatisticas?${params}`);
+        const statsResponse = await fetch(`${API_BASE_URL}/estatisticas?${params}`, { credentials: 'include' });
         const statsResult = await statsResponse.json();
 
         if (statsResult.success) {
@@ -89,7 +89,7 @@ async function carregarDados() {
         }
 
         // 2. Busca guias detalhadas
-        const guiasResponse = await fetch(`${API_BASE_URL}/guias-negadas?${params}`);
+        const guiasResponse = await fetch(`${API_BASE_URL}/guias-negadas?${params}`, { credentials: 'include' });
         const guiasResult = await guiasResponse.json(); 
 
         if (guiasResult.success) {
@@ -104,7 +104,7 @@ async function carregarDados() {
 
         // 3. Busca dados de SLA
         try {
-            const slaResponse = await fetch(`${API_BASE_URL}/sla-desempenho?${params}`);
+            const slaResponse = await fetch(`${API_BASE_URL}/sla-desempenho?${params}`, { credentials: 'include' });
             const slaResult = await slaResponse.json();
         
             if (slaResult.success) {

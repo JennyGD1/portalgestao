@@ -225,7 +225,9 @@ async function carregarDados() {
     const endDate = document.getElementById('end-date').value;
 
     try {
-        const response = await fetch(`${API_URL}?startDate=${startDate}&endDate=${endDate}`);
+        const response = await fetch(`${API_URL}?startDate=${startDate}&endDate=${endDate}`, { 
+            credentials: 'include' 
+        });
         const json = await response.json();
 
         if (json.success) {

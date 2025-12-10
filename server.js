@@ -151,7 +151,7 @@ const regulacaoRoutes = require('./routes/regulacao.routes');
 const auditoriaRoutes = require('./routes/auditoria.routes');
 const faturamentoRoutes = require('./routes/faturamento.routes');
 
-app.use('/api', regulacaoRoutes);
+app.use('/api/regulacao', regulacaoRoutes);
 app.use('/api/auditoria', auditoriaRoutes);
 app.use('/api/faturamento', faturamentoRoutes);
 

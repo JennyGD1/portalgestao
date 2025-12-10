@@ -65,7 +65,9 @@ const verificarAutenticacao = (req, res, next) => {
     if (ehPublico) {
         return next();
     }
-    
+    if (req.path.startsWith('/api/')) {
+        return res.status(401).json({ success: false, error: 'Não autorizado ou sessão expirada' });
+    }
     res.redirect('/login');
 };
 

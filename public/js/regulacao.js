@@ -155,84 +155,109 @@ async function carregarSLAEmTempoReal() {
         if (result.success) {
             container.innerHTML = '';
             
-            // Criar container para a primeira linha (Eletivas)
+            // Containers das linhas
             const linhaEletivas = document.createElement('div');
             linhaEletivas.className = 'rt-linha';
-            linhaEletivas.style.display = 'flex';
-            linhaEletivas.style.justifyContent = 'space-between';
-            linhaEletivas.style.marginBottom = '20px';
-            linhaEletivas.style.flexWrap = 'wrap';
+            linhaEletivas.style.cssText = 'display:flex; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap;';
             
-            // Criar container para a segunda linha (Urgências)
             const linhaUrgencias = document.createElement('div');
             linhaUrgencias.className = 'rt-linha';
-            linhaUrgencias.style.display = 'flex';
-            linhaUrgencias.style.justifyContent = 'space-between';
-            linhaUrgencias.style.flexWrap = 'wrap';
+            linhaUrgencias.style.cssText = 'display:flex; justify-content:space-between; flex-wrap:wrap;';
             
             // Função para criar card
-            const criarCard = (fila) => {
+            const criarCard = (fila, index, tipo) => {
                 const card = document.createElement('div');
                 card.className = `rt-card status-${fila.status}`;
-                card.style.flex = '1';
-                card.style.minWidth = '23%';
-                card.style.margin = '0 1%';
+                card.style.cssText = 'flex:1; min-width:23%; margin:0 1%; position:relative;'; // position:relative é importante
                 
-                // Lógica de Alerta Separada
                 const temVencidas = fila.totalVencidas > 0;
                 const temProximas = fila.totalProximas > 0;
                 
-                let alertHtml = '<div style="height:34px"></div>'; // Espaço vazio padrão
+                let alertHtml = '<div style="height:34px"></div>'; // Espaço vazio
 
                 if (temVencidas || temProximas) {
+                    const uniqueId = `tooltip-${tipo}-${index}-${fila.id}`;
                     
-                    // 1. Define o Texto do Badge (Botãozinho colorido)
+                    // Texto do Badge (Botão visível)
                     let badgeLabel = '';
-                    let badgeClass = ''; // Para estilizar cor se quiser
+                    let badgeStyle = '';
 
                     if (temVencidas && temProximas) {
                         badgeLabel = `🚨 ${fila.totalVencidas} Vencidas | ⚠️ ${fila.totalProximas} Próx.`;
+                        badgeStyle = 'background:#ffebee; color:#c62828; border:1px solid #ffcdd2;';
                     } else if (temVencidas) {
                         badgeLabel = `🚨 ${fila.totalVencidas} Guias Vencidas`;
+                        badgeStyle = 'background:#ffebee; color:#c62828; border:1px solid #ffcdd2;';
                     } else {
                         badgeLabel = `⚠️ ${fila.totalProximas} Próximas do Venc.`;
+                        badgeStyle = 'background:#fff3e0; color:#e65100; border:1px solid #ffe0b2;';
                     }
 
-                    // 2. Monta o Conteúdo do Tooltip (Separado)
-                    let tooltipContentHtml = '';
+                    // Conteúdo Interno do Tooltip
+                    let contentVencidas = '';
+                    let contentProximas = '';
 
-                    // Seção de Vencidas (Vermelho)
+                    // SEÇÃO VENCIDAS
                     if (temVencidas) {
-                        const listaV = fila.listaVencidas.map(num => `<div class="rt-tooltip-item" style="color:#c62828;">${num}</div>`).join('');
-                        tooltipContentHtml += `
-                            <div style="margin-bottom:10px;">
-                                <strong style="color:#c62828; border-bottom:1px solid #ffd7d7;">JÁ VENCIDAS (${fila.totalVencidas})</strong>
-                                <div class="rt-tooltip-list">${listaV}</div>
+                        const listaVStr = fila.listaVencidas.join(', ');
+                        const itensHtml = fila.listaVencidas.map(num => `<div class="rt-item-num">${num}</div>`).join('');
+                        
+                        contentVencidas = `
+                            <div class="rt-section-block" style="background:#fff5f5; border:1px solid #ffcdd2; padding:10px; border-radius:4px; margin-bottom:10px;">
+                                <div style="color:#c62828; font-weight:bold; font-size:0.9em; margin-bottom:5px; border-bottom:1px solid #ffcdd2; padding-bottom:3px;">
+                                    JÁ VENCIDAS (${fila.totalVencidas})
+                                </div>
+                                <div class="rt-lista-scroll" style="max-height:80px; overflow-y:auto; margin-bottom:8px; display:flex; flex-wrap:wrap; gap:4px;">
+                                    ${itensHtml}
+                                </div>
+                                <button onclick="copiarGuias(this, '${listaVStr}')" class="btn-copy-mini" style="width:100%; border:1px solid #c62828; color:#c62828;">
+                                    📋 Copiar Vencidas
+                                </button>
                             </div>
                         `;
                     }
 
-                    // Seção de Próximas (Laranja/Amarelo Escuro)
+                    // SEÇÃO PRÓXIMAS
                     if (temProximas) {
-                        const listaP = fila.listaProximas.map(num => `<div class="rt-tooltip-item" style="color:#d35400;">${num}</div>`).join('');
-                        tooltipContentHtml += `
-                            <div>
-                                <strong style="color:#d35400; border-bottom:1px solid #fdebd0;">VENCEM EM BREVE (${fila.totalProximas})</strong>
-                                <div class="rt-tooltip-list">${listaP}</div>
+                        const listaPStr = fila.listaProximas.join(', ');
+                        const itensHtml = fila.listaProximas.map(num => `<div class="rt-item-num">${num}</div>`).join('');
+                        
+                        contentProximas = `
+                            <div class="rt-section-block" style="background:#fffcf5; border:1px solid #ffe0b2; padding:10px; border-radius:4px;">
+                                <div style="color:#e65100; font-weight:bold; font-size:0.9em; margin-bottom:5px; border-bottom:1px solid #ffe0b2; padding-bottom:3px;">
+                                    VENCEM EM BREVE (${fila.totalProximas})
+                                </div>
+                                <div class="rt-lista-scroll" style="max-height:80px; overflow-y:auto; margin-bottom:8px; display:flex; flex-wrap:wrap; gap:4px;">
+                                    ${itensHtml}
+                                </div>
+                                <button onclick="copiarGuias(this, '${listaPStr}')" class="btn-copy-mini" style="width:100%; border:1px solid #e65100; color:#e65100;">
+                                    📋 Copiar Próximas
+                                </button>
                             </div>
                         `;
                     }
 
                     alertHtml = `
-                        <div class="rt-alert-wrapper">
-                            <div class="rt-alert-badge" style="${temVencidas ? 'background:#ffebee; color:#c62828;' : 'background:#fff3e0; color:#e65100;'}">
-                                ${badgeLabel}
+                        <div class="rt-alert-wrapper" style="position:relative;">
+                            <div class="rt-alert-badge" 
+                                 onclick="toggleTooltip(event, '${uniqueId}')"
+                                 style="cursor:pointer; padding:6px 10px; border-radius:15px; font-weight:bold; font-size:0.85em; text-align:center; ${badgeStyle} transition:transform 0.1s;">
+                                ${badgeLabel} <span style="font-size:0.8em; margin-left:4px;">▼</span>
                             </div>
                             
-                            <div class="rt-tooltip-content" style="width: 250px;">
-                                ${tooltipContentHtml}
-                                <div style="font-size:0.7em; color:#999; margin-top:5px; text-align:center;">
-                                    Copie os números acima
+                            <div id="${uniqueId}" class="rt-tooltip-content" 
+                                 style="display:none; position:absolute; top:40px; left:50%; transform:translateX(-50%); 
+                                        width:280px; background:white; border:1px solid #ccc; box-shadow:0 4px 15px rgba(0,0,0,0.2); 
+                                        border-radius:8px; padding:15px; z-index:1000; text-align:left;">
+                                
+                                <button onclick="fecharTooltipEspecifico(event, '${uniqueId}')" 
+                                        style="position:absolute; top:5px; right:5px; background:none; border:none; font-weight:bold; color:#999; cursor:pointer; font-size:16px;">
+                                    ✕
+                                </button>
+
+                                <div style="margin-top:10px;">
+                                    ${contentVencidas}
+                                    ${contentProximas}
                                 </div>
                             </div>
                         </div>
@@ -257,26 +282,16 @@ async function carregarSLAEmTempoReal() {
                 return card;
             };
             
-            // Adicionar cards eletivos na primeira linha
-            result.data.eletivas.forEach(fila => {
-                linhaEletivas.appendChild(criarCard(fila));
-            });
+            result.data.eletivas.forEach((fila, i) => linhaEletivas.appendChild(criarCard(fila, i, 'ele')));
+            result.data.urgencias.forEach((fila, i) => linhaUrgencias.appendChild(criarCard(fila, i, 'urg')));
             
-            // Adicionar cards urgências na segunda linha
-            result.data.urgencias.forEach(fila => {
-                linhaUrgencias.appendChild(criarCard(fila));
-            });
-            
-            // Adicionar as linhas ao container principal
             container.appendChild(linhaEletivas);
             container.appendChild(linhaUrgencias);
         }
     } catch (error) {
         console.error('Erro no monitoramento realtime:', error);
-        container.innerHTML = '<div style="color:red; padding:10px;">Erro ao atualizar filas. Tentando novamente em breve...</div>';
     }
 }
-
 carregarSLAEmTempoReal();
 
 setInterval(carregarSLAEmTempoReal, 30 * 60 * 1000);
@@ -1177,7 +1192,65 @@ function criarPaginacao(data = guiasData) {
 }
 
 // --- Funções do Modal e Filtros ---
+window.toggleTooltip = function(event, idUnico) {
+    event.stopPropagation(); 
+    
+    document.querySelectorAll('.rt-tooltip-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.rt-card').forEach(card => card.style.zIndex = '1'); // Reseta camada
 
+    const tooltip = document.getElementById(idUnico);
+    const parentCard = tooltip.closest('.rt-card');
+
+    tooltip.style.display = 'block';
+    
+    if (parentCard) {
+        parentCard.style.zIndex = '1000'; 
+    }
+};
+
+window.fecharTooltipEspecifico = function(event, idUnico) {
+    event.stopPropagation();
+    const tooltip = document.getElementById(idUnico);
+    
+    if (tooltip) {
+        tooltip.style.display = 'none';
+        const parentCard = tooltip.closest('.rt-card');
+        if (parentCard) parentCard.style.zIndex = '1'; 
+    }
+};
+
+window.copiarGuias = function(btn, listaGuias) {
+    if (!listaGuias) return;
+
+    navigator.clipboard.writeText(listaGuias).then(() => {
+        const textoOriginal = btn.innerHTML;
+        const corOriginal = btn.style.borderColor;
+        
+        btn.innerHTML = '✅ Copiado!';
+        btn.style.borderColor = '#4cd964';
+        btn.style.color = '#4cd964';
+        
+        setTimeout(() => {
+            btn.innerHTML = textoOriginal;
+            btn.style.borderColor = corOriginal || '#ccc';
+            btn.style.color = 'inherit';
+        }, 2000);
+    }).catch(err => {
+        console.error('Erro ao copiar:', err);
+        alert('Erro ao copiar para a área de transferência');
+    });
+};
+
+window.addEventListener('click', function(e) {
+    if (!e.target.closest('.rt-alert-wrapper')) {
+        document.querySelectorAll('.rt-tooltip-content').forEach(el => {
+            el.style.display = 'none';
+        });
+        document.querySelectorAll('.rt-card').forEach(card => {
+            card.style.zIndex = '1';
+        });
+    }
+});
 window.mostrarDetalhes = function(guiaId) {
     console.log("🔘 Botão clicado! ID:", guiaId, "Tipo:", typeof guiaId);
 

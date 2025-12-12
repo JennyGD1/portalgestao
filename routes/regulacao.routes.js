@@ -211,8 +211,9 @@ router.get('/sla-tempo-real', async (req, res) => {
                     totalVencidas++;
                     listaVencidas.push(numeroGuia);
                 } else {
+                    dentroPrazo++; 
+
                     if (fila.id === 'PRORROGACAO') {
-                        dentroPrazo++; 
                     } else {
                         let dataVencimento = null;
                         if (guia.dataVencimentoSla || guia.dataVencimento) {
@@ -229,11 +230,7 @@ router.get('/sla-tempo-real', async (req, res) => {
                             if (diffMs > 0 && diffMs <= (fila.limiteAlertaHoras * 60 * 60 * 1000)) {
                                 totalProximas++;
                                 listaProximas.push(numeroGuia);
-                            } else {
-                                dentroPrazo++;
                             }
-                        } else {
-                            dentroPrazo++;
                         }
                     }
                 }

@@ -4,7 +4,7 @@ const router = express.Router();
 router.get('/estatisticas', async (req, res) => {
     try {
         const processosCollection = req.db.collection('processos');
-        const { producao } = req.query; // Ex: "10/2025"
+        const { producao } = req.query;
 
         const matchStage = {};
         
@@ -28,28 +28,6 @@ router.get('/estatisticas', async (req, res) => {
                                             input: {
                                                 $replaceAll: {
                                                     input: { $toString: { $ifNull: ["$valorCapa", "0"] } },
-                                                    find: ".", replacement: ""
-                                                }
-                                            },
-                                            find: ",", replacement: "."
-                                        }
-                                    },
-                                    to: "double", onError: 0, onNull: 0
-                                }
-                            }
-                        }
-                    },
-                    vInfoNum: {
-                        $cond: {
-                            if: { $isNumber: "$valorInformado" },
-                            then: "$valorInformado",
-                            else: {
-                                $convert: {
-                                    input: {
-                                        $replaceAll: {
-                                            input: {
-                                                $replaceAll: {
-                                                    input: { $toString: { $ifNull: ["$valorInformado", "0"] } },
                                                     find: ".", replacement: ""
                                                 }
                                             },
@@ -110,57 +88,15 @@ router.get('/estatisticas', async (req, res) => {
 
             {
                 $addFields: {
-                    valorApresentadoCalc: {
-                        $ifNull: ["$vCapaNum", "$vInfoNum", 0] 
-                    },
-                    valorLiberadoCalc: "$vLibNum"
-                }
-            },
-
-            {
-                $addFields: {
-                    isFinalizado: {
-                        $regexMatch: { 
-                            input: { $toString: "$status" }, 
-                            regex: /tramitado|assinado|arquivado|finalizado/i 
-                        }
-                    }
-                }
-            },
-            {
-                $addFields: {
-                    temAmbosValores: {
-                        $and: [
-                            { $gt: ["$valorApresentadoCalc", 0.01] },
-                            { $gt: ["$valorLiberadoCalc", 0.01] }
-                        ]
-                    },
-                    diferencaComoGlosa: {
-                        $cond: {
-                            if: { $lt: ["$valorLiberadoCalc", "$valorApresentadoCalc"] },
-                            then: { $subtract: ["$valorApresentadoCalc", "$valorLiberadoCalc"] },
-                            else: 0
-                        }
-                    },
-                    valorGlosaCalc: {
-                        $cond: {
-                            if: { $gt: ["$vGlosaNum", 0.01] },
-                            then: "$vGlosaNum",
-                            else: {
-                                $cond: {
-                                    if: "$temAmbosValores",
-                                    then: "$diferencaComoGlosa",
-                                    else: 0
-                                }
-                            }
-                        }
-                    }
+                    valorApresentadoCalc: "$vCapaNum",
+                    valorLiberadoCalc: "$vLibNum",
+                    valorGlosaCalc: "$vGlosaNum"
                 }
             },
 
             {
                 $facet: {
-                    "kpis": [
+                    kpis: [
                         {
                             $group: {
                                 _id: null,
@@ -171,7 +107,7 @@ router.get('/estatisticas', async (req, res) => {
                             }
                         }
                     ],
-                    "statusStats": [
+                    statusStats: [
                         {
                             $group: {
                                 _id: { $toLower: "$status" },
@@ -180,7 +116,7 @@ router.get('/estatisticas', async (req, res) => {
                             }
                         }
                     ],
-                    "topGlosa": [
+                    topGlosa: [
                         { $match: { valorGlosaCalc: { $gt: 0 } } },
                         {
                             $group: {
@@ -196,7 +132,7 @@ router.get('/estatisticas', async (req, res) => {
                         { $sort: { totalGlosa: -1 } },
                         { $limit: 10 }
                     ],
-                    "topVolume": [
+                    topVolume: [
                         {
                             $group: {
                                 _id: "$credenciado",
@@ -211,7 +147,7 @@ router.get('/estatisticas', async (req, res) => {
                         { $sort: { totalApresentado: -1 } },
                         { $limit: 10 }
                     ],
-                    "tratamentos": [
+                    tratamentos: [
                         {
                             $group: {
                                 _id: "$tratamento",
@@ -226,7 +162,7 @@ router.get('/estatisticas', async (req, res) => {
                         },
                         { $sort: { totalValor: -1 } }
                     ],
-                    "produtividade": [
+                    produtividade: [
                         { 
                             $match: { 
                                 responsavel: { $exists: true, $ne: null, $ne: "" },
@@ -265,10 +201,11 @@ router.get('/estatisticas', async (req, res) => {
         res.json({ success: true, data: data });
 
     } catch (error) {
-        console.error('❌ Erro estatísticas faturamento:', error);
+        console.error(error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
 router.get('/processos-analisados', async (req, res) => {
     try {
         const processosCollection = req.db.collection('processos');
@@ -287,14 +224,12 @@ router.get('/processos-analisados', async (req, res) => {
                     totalProcessos: [
                         { $count: "total" }
                     ],
-                    processosComGT: [
-                        { $match: { 
-                            gt: { 
-                                $exists: true, 
-                                $ne: null, 
-                                $ne: "" 
+                    processosTramitados: [
+                        { 
+                            $match: { 
+                                status: /assinado e tramitado/i 
                             } 
-                        }},
+                        },
                         { $count: "total" }
                     ]
                 }
@@ -305,7 +240,7 @@ router.get('/processos-analisados', async (req, res) => {
         const data = results[0];
 
         const totalProcessos = data.totalProcessos[0]?.total || 0;
-        const processosAnalisados = data.processosComGT[0]?.total || 0;
+        const processosAnalisados = data.processosTramitados[0]?.total || 0; 
 
         res.json({
             success: true,
@@ -318,8 +253,8 @@ router.get('/processos-analisados', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Erro ao contar processos analisados:', error);
+        console.error(error);
         res.status(500).json({ success: false, error: error.message });
     }
-});
+}); 
 module.exports = router;

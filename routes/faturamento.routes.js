@@ -108,13 +108,23 @@ router.get('/estatisticas', async (req, res) => {
                         }
                     ],
                     statusStats: [
-                        {
-                            $group: {
-                                _id: { $toLower: "$status" },
-                                totalValor: { $sum: "$valorApresentadoCalc" },
-                                quantidade: { $sum: 1 }
+                    {
+                        $group: {
+                        _id: {
+                            $replaceAll: {
+                            input: {
+                                $replaceAll: {
+                                input: { $toLower: "$status" },
+                                find: "á", replacement: "a"
+                                }
+                            },
+                            find: "ã", replacement: "a"
                             }
+                        },
+                        totalValor: { $sum: "$valorApresentadoCalc" },
+                        quantidade: { $sum: 1 }
                         }
+                    }
                     ],
                     topGlosa: [
                         { $match: { valorGlosaCalc: { $gt: 0 } } },

@@ -3,6 +3,9 @@ Chart.register(ChartDataLabels);
 const API_BASE_URL = '/api/faturamento';
 const loadingOverlay = document.getElementById('loading-overlay');
 
+// 5 Minutos em milissegundos
+const INTERVALO_ATUALIZACAO = 5 * 60 * 1000; 
+
 const formatBRL = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,15 +13,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     
-    document.getElementById('producao-filter').value = `${yyyy}-${mm}`;
+    // Define a data inicial
+    const inputProducao = document.getElementById('producao-filter');
+    if (inputProducao) {
+        inputProducao.value = `${yyyy}-${mm}`;
+    }
 
-    document.getElementById('refresh-btn').addEventListener('click', carregarDashboard);
+    // Botão de filtrar manual (Mostra Loading)
+    document.getElementById('refresh-btn').addEventListener('click', () => carregarDashboard(false));
 
-    carregarDashboard();
+    // Carregamento inicial (Mostra Loading)
+    carregarDashboard(false);
+
+    // --- LÓGICA DE TEMPO REAL ---
+    // Inicia o contador para atualizar a cada 5 minutos
+    setInterval(() => {
+        console.log(`🔄 Atualizando dados automaticamente (${new Date().toLocaleTimeString()})...`);
+        carregarDashboard(true); // true = Modo silencioso (sem loading)
+    }, INTERVALO_ATUALIZACAO);
 });
 
-function showLoading() { loadingOverlay.style.display = 'flex'; }
-function hideLoading() { loadingOverlay.style.display = 'none'; }
+function showLoading() { if (loadingOverlay) loadingOverlay.style.display = 'flex'; }
+function hideLoading() { if (loadingOverlay) loadingOverlay.style.display = 'none'; }
 
 function getProducaoFormatada() {
     const inputVal = document.getElementById('producao-filter').value;
@@ -27,6 +43,7 @@ function getProducaoFormatada() {
     const [ano, mes] = inputVal.split('-');
     return `${mes}/${ano}`;
 }
+
 async function carregarDadosAnalise(producao) {
     try {
         const resp = await fetch(`${API_BASE_URL}/processos-analisados?producao=${producao}`, { credentials: 'include' });
@@ -48,8 +65,8 @@ function atualizarCardsAnalise(data) {
         processosAnalisados = 0
     } = data;
     
-    document.getElementById('val-analisados').textContent = 
-        `${processosAnalisados}/${totalProcessos}`;
+    const elVal = document.getElementById('val-analisados');
+    if (elVal) elVal.textContent = `${processosAnalisados}/${totalProcessos}`;
     
     const porcentagem = totalProcessos > 0 ? (processosAnalisados / totalProcessos) * 100 : 0;
     
@@ -63,11 +80,16 @@ function atualizarCardsAnalise(data) {
         progressText.textContent = `${porcentagem.toFixed(1)}%`;
     }
 }
-async function carregarDashboard() {
-    showLoading();
+
+/**
+ * Função principal para carregar o Dashboard
+ * @param {boolean} silent - Se true, não exibe a tela de loading (para updates automáticos)
+ */
+async function carregarDashboard(silent = false) {
+    if (!silent) showLoading();
     
     const producao = getProducaoFormatada();
-    console.log("🔍 Buscando produção:", producao);
+    // console.log("🔍 Buscando produção:", producao);
 
     try {
         const resp = await fetch(`${API_BASE_URL}/estatisticas?producao=${producao}`, { credentials: 'include' });
@@ -78,32 +100,45 @@ async function carregarDashboard() {
             atualizarStatusCards(json.data.statusStats, json.data.kpis[0]);
             renderizarGraficos(json.data);
             await carregarDadosAnalise(producao);
+            
+            if (silent) {
+                console.log("✅ Dados atualizados com sucesso.");
+            }
         }
 
     } catch (err) {
         console.error("Erro ao carregar dashboard:", err);
     } finally {
-        hideLoading();
+        if (!silent) hideLoading();
     }
 }
 
 function atualizarKPIs(data) {
     if (!data) data = { totalApresentado: 0, totalLiberado: 0, totalGlosa: 0 };
     
-    document.getElementById('val-apresentado').textContent = formatBRL(data.totalApresentado);
-    document.getElementById('val-liberado').textContent = formatBRL(data.totalLiberado);
-    document.getElementById('val-glosa').textContent = formatBRL(data.totalGlosa);
+    const elApresentado = document.getElementById('val-apresentado');
+    const elLiberado = document.getElementById('val-liberado');
+    const elGlosa = document.getElementById('val-glosa');
+
+    if (elApresentado) elApresentado.textContent = formatBRL(data.totalApresentado);
+    if (elLiberado) elLiberado.textContent = formatBRL(data.totalLiberado);
+    if (elGlosa) elGlosa.textContent = formatBRL(data.totalGlosa);
 }
 
 function atualizarStatusCards(statusData, kpisGerais) {
     
+    // Total real de processos na competência
+    const totalCompetencia = kpisGerais ? kpisGerais.count : 0;
+
     const mapStatusToCard = (statusDb) => {
         if (!statusDb) return null;
         
+        // Remove acentos e converte para minúsculas para comparação segura
         const s = statusDb.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
         if (s.includes('arquivado')) return 'card-arquivado';
-        if (s.includes('tramitado') || s.includes('assinado') || s.includes('finalizado')) return 'card-tramitado';
+        // 'concluido' adicionado para garantir compatibilidade com nova query do banco
+        if (s.includes('tramitado') || s.includes('assinado') || s.includes('finalizado') || s.includes('concluido')) return 'card-tramitado';
         if (s.includes('em analise')) return 'card-em-analise';
         
         return 'card-para-analise';
@@ -126,13 +161,16 @@ function atualizarStatusCards(statusData, kpisGerais) {
         });
     }
 
-    const totalVisual = Object.values(cards).reduce((acc, curr) => acc + curr.qtd, 0);
-
     Object.keys(cards).forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             const dados = cards[id];
-            const pct = totalVisual > 0 ? ((dados.qtd / totalVisual) * 100).toFixed(1) : 0;
+            
+            // Cálculo da porcentagem em relação ao TOTAL DA COMPETÊNCIA
+            let pct = 0;
+            if (totalCompetencia > 0) {
+                pct = ((dados.qtd / totalCompetencia) * 100).toFixed(1);
+            }
 
             el.querySelector('.qtd').textContent = dados.qtd;
             el.querySelector('.val').textContent = formatBRL(dados.valor);
@@ -147,16 +185,18 @@ function recriarCanvas(id) {
     if (charts[id]) {
         charts[id].destroy();
     }
+    
     const canvas = document.getElementById(id);
     if (!canvas) {
-        console.error(`Canvas com id "${id}" não encontrado`);
+        // console.warn(`Canvas com id "${id}" não encontrado na DOM.`);
         return null;
     }
+    
     return canvas.getContext('2d');
 }
 
 function renderizarGraficos(data) {
-    console.log("📊 Renderizando gráficos com dados:", data);
+    // console.log("📊 Renderizando gráficos...");
     
     const cAzul = '#0070ff';
     const cRosa = '#ff0073';
@@ -168,9 +208,7 @@ function renderizarGraficos(data) {
 
     const bordaPadrao = 4;
 
-    // --------------------------------------------------------
     // 1. TOP PRESTADORES (VOLUME)
-    // --------------------------------------------------------
     const ctxVol = recriarCanvas('chart-top-volume');
     if (ctxVol && data.topVolume && data.topVolume.length > 0) {
         charts['chart-top-volume'] = new Chart(ctxVol, {
@@ -190,20 +228,14 @@ function renderizarGraficos(data) {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { 
-                        grid: { display: false }, 
-                        ticks: { display: false }
-                    },
+                    x: { display: false },
                     y: { 
                         grid: { display: false },
                         ticks: {
                             font: { size: 11 },
-                            callback: function(value) {
-                                const label = this.getLabelForValue(value);
-                                if (label && label.length > 30) {
-                                    return label.substring(0, 27) + '...';
-                                }
-                                return label;
+                            callback: function(val) {
+                                const label = this.getLabelForValue(val);
+                                return (label && label.length > 25) ? label.substring(0, 22) + '...' : label;
                             }
                         }
                     }
@@ -211,28 +243,18 @@ function renderizarGraficos(data) {
                 plugins: {
                     legend: { display: false },
                     datalabels: {
-                        anchor: 'end', 
-                        align: 'right',
+                        anchor: 'end', align: 'right',
                         formatter: (val) => formatBRL(val),
                         font: { size: 10, weight: 'bold' },
                         color: '#555'
                     }
                 },
-                layout: { 
-                    padding: { 
-                        left: 5,
-                        right: 90,
-                        top: 10,
-                        bottom: 10
-                    } 
-                }
+                layout: { padding: { right: 90 } }
             }
         });
     }
 
-    // --------------------------------------------------------
     // 2. TOP PRESTADORES (GLOSA)
-    // --------------------------------------------------------
     const ctxGlosa = recriarCanvas('chart-top-glosa');
     if (ctxGlosa && data.topGlosa && data.topGlosa.length > 0) {
         charts['chart-top-glosa'] = new Chart(ctxGlosa, {
@@ -252,18 +274,74 @@ function renderizarGraficos(data) {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { 
-                        grid: { display: false }, 
-                        ticks: { display: false }
-                    },
+                    x: { display: false },
                     y: { 
                         grid: { display: false },
                         ticks: {
                             font: { size: 11 },
-                            callback: function(value) {
-                                const label = this.getLabelForValue(value);
-                                if (label && label.length > 30) {
-                                    return label.substring(0, 27) + '...';
+                            callback: function(val) {
+                                const label = this.getLabelForValue(val);
+                                return (label && label.length > 25) ? label.substring(0, 22) + '...' : label;
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        anchor: 'end', align: 'right',
+                        formatter: (val) => formatBRL(val),
+                        color: cRosa,
+                        font: { size: 10, weight: 'bold' }
+                    }
+                },
+                layout: { padding: { right: 90 } }
+            }
+        });
+    }
+
+    // 3. TRATAMENTOS
+    const ctxTrat = recriarCanvas('chart-tratamento');
+    if (ctxTrat && data.tratamentos && data.tratamentos.length > 0) {
+        const top5Tratamentos = [...data.tratamentos]
+            .sort((a, b) => (b.totalValor || 0) - (a.totalValor || 0))
+            .slice(0, 5);
+
+        const totalTop5 = top5Tratamentos.reduce((acc, curr) => acc + (curr.totalValor || 0), 0);
+
+        charts['chart-tratamento'] = new Chart(ctxTrat, {
+            type: 'bar', 
+            data: {
+                labels: top5Tratamentos.map(d => d._id || 'N/A'),
+                datasets: [{
+                    label: 'Valor Total',
+                    data: top5Tratamentos.map(d => d.totalValor || 0),
+                    backgroundColor: cAzul,
+                    borderRadius: bordaPadrao,
+                    barPercentage: 0.6,
+                    categoryPercentage: 0.8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { 
+                        display: false, 
+                        grid: { display: false } 
+                    },
+                    x: { 
+                        display: true, 
+                        grid: { display: false },
+                        ticks: {
+                            font: { size: 10, weight: '600' },
+                            color: '#555',
+                            autoSkip: false, 
+                            maxRotation: 0, 
+                            callback: function(val, index) {
+                                const label = this.getLabelForValue(val);
+                                if (/\s/.test(label) && label.length > 10) {
+                                    return label.split(' ');
                                 }
                                 return label;
                             }
@@ -274,83 +352,33 @@ function renderizarGraficos(data) {
                     legend: { display: false },
                     datalabels: {
                         anchor: 'end', 
-                        align: 'right',
-                        formatter: (val) => formatBRL(val),
-                        color: cRosa,
-                        font: { size: 10, weight: 'bold' }
+                        align: 'top',
+                        color: '#555',
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (val) => ((val / totalTop5) * 100).toFixed(1) + '%'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return formatBRL(context.raw);
+                            }
+                        }
                     }
                 },
                 layout: { 
-                    padding: { 
-                        left: 5,
-                        right: 90,
-                        top: 10,
-                        bottom: 10
-                    } 
+                    padding: { top: 25, bottom: 5 } 
                 }
             }
         });
     }
 
-    // --------------------------------------------------------
-    // 3. TRATAMENTOS
-    // --------------------------------------------------------
-    const ctxTrat = recriarCanvas('chart-tratamento');
-    if (ctxTrat && data.tratamentos && data.tratamentos.length > 0) {
-        const totalTrat = data.tratamentos.reduce((acc, curr) => acc + (curr.totalValor || 0), 0);
-        const tratamentosFiltrados = data.tratamentos.filter(t => {
-            const pct = ((t.totalValor || 0) / totalTrat) * 100;
-            return pct >= 5;
-        });
-
-        charts['chart-tratamento'] = new Chart(ctxTrat, {
-            type: 'bar',
-            data: {
-                labels: tratamentosFiltrados.map(d => d._id || 'Sem tipo'),
-                datasets: [{
-                    label: 'Valor Total',
-                    data: tratamentosFiltrados.map(d => d.totalValor || 0),
-                    backgroundColor: cAzul,
-                    borderRadius: bordaPadrao,
-                    ...barOptions
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { grid: { display: false } },
-                    y: { grid: { display: false }, ticks: { display: false } }
-                },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => `${formatBRL(ctx.raw)}`
-                        }
-                    },
-                    datalabels: {
-                        anchor: 'end',
-                        align: 'top',
-                        color: '#555',
-                        font: { weight: 'bold', size: 11 },
-                        formatter: (val) => ((val / totalTrat) * 100).toFixed(1) + '%'
-                    }
-                },
-                layout: { padding: { top: 30 } }
-            }
-        });
-    }
-
-    // --------------------------------------------------------
     // 4. PRODUTIVIDADE
-    // --------------------------------------------------------
     const ctxProd = recriarCanvas('chart-produtividade');
     if (ctxProd && data.produtividade && data.produtividade.length > 0) {
         charts['chart-produtividade'] = new Chart(ctxProd, {
             type: 'bar',
             data: {
-                labels: data.produtividade.map(d => d._id || 'Sem responsável'),
+                labels: data.produtividade.map(d => d._id || 'N/A'),
                 datasets: [
                     {
                         label: 'Valor Tramitado (R$)',
@@ -380,18 +408,8 @@ function renderizarGraficos(data) {
                 maintainAspectRatio: false,
                 scales: {
                     y: { grid: { display: false } },
-                    xValue: { 
-                        type: 'linear', 
-                        position: 'top', 
-                        display: false, 
-                        grid: { display: false } 
-                    },
-                    xQtd: { 
-                        type: 'linear', 
-                        position: 'bottom', 
-                        display: false, 
-                        grid: { display: false } 
-                    }
+                    xValue: { display: false },
+                    xQtd: { display: false }
                 },
                 plugins: {
                     legend: {
@@ -399,8 +417,7 @@ function renderizarGraficos(data) {
                         labels: { usePointStyle: true, boxWidth: 8 }
                     },
                     datalabels: {
-                        anchor: 'end',
-                        align: 'right',
+                        anchor: 'end', align: 'right',
                         font: { size: 10, weight: 'bold' },
                         formatter: (val, ctx) => {
                             if (ctx.datasetIndex === 0) return formatBRL(val);

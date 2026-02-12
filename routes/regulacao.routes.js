@@ -27,7 +27,7 @@ router.get('/sla-tempo-real', async (req, res) => {
             return res.status(500).json({ success: false, error: 'Falha na autenticação externa' });
         }
         const baseURL = 'https://regulacao-api.issec.maida.health/v3/historico-cliente?ordenarPor=DATA_SOLICITACAO&listaDeStatus=EM_ANALISE,EM_REANALISE,DOCUMENTACAO_EM_ANALISE';
-        
+    
         const filasEletivas = [
             { 
                 id: 'INTERNACAO_ELETIVA', 
@@ -266,118 +266,74 @@ router.get('/sla-tempo-real', async (req, res) => {
 });
 router.get('/guias-negadas', async (req, res) => {
     try {
-        console.log('🔍 Buscando guias negadas com filtros...');
-        
-        const guiasCollection = req.db.collection('guias');
-
         const { search, startDate, endDate } = req.query;
-        
-        const query = { 
-            "itensGuia": { $exists: true, $ne: [] },
-            "statusRegulacao": { $ne: 'CANCELADA' }
-        };
-        
+        let query = `
+            SELECT * FROM public.regulacao_issec 
+            WHERE jsonb_array_length(itens_guia) > 0 
+            AND status_regulacao != 'CANCELADA'
+        `;
+        const values = [];
+
         if (startDate && endDate) {
-            query.dataRegulacao = {
-                $gte: startDate,
-                $lte: endDate
-            };
-        }
-        
-        if (search) {
-            query.$or = [
-                { autorizacaoGuia: new RegExp(search, 'i') }, 
-                { "itensGuia.codigo": new RegExp(search, 'i') },
-                { "prestador": new RegExp(search, 'i') } 
-            ];
+            values.push(startDate, endDate);
+            query += ` AND data_regulacao BETWEEN $${values.length - 1} AND $${values.length}`;
         }
 
-        const guiasEncontradas = await guiasCollection.find(query).toArray();
-        
-        const resultado = [];
-        
-        for (const guia of guiasEncontradas) {
-            const itens = guia.itensGuia || [];
-            const itensNegados = [];
-            let totalNegadoGuia = 0;
-            
-            for (const item of itens) {
-                const valorNegado = parseFloat(item.valorNegado || 0);
-                
-                if (valorNegado > 0.01) { 
-                    const quantNegada = item.quantNegada || (item.quantSolicitada - (item.quantAutorizada || 0));
-                    
-                    itensNegados.push({
-                        codigo: item.codigo || 'N/A',
-                        descricao: item.descricao || 'Descrição não disponível',
-                        quantSolicitada: item.quantSolicitada || 0,
-                        quantAutorizada: item.quantAutorizada || 0,
-                        quantNegada: quantNegada,
-                        valorUnitario: item.valorUnitarioProcedimento || 0,
-                        valorTotalNegado: valorNegado,
-                    });
-                    totalNegadoGuia += valorNegado;
-                }
-            }
-            
-            if (itensNegados.length > 0) {
-                resultado.push({
-                    _id: guia._id,
-                    numeroGuiaOperadora: guia.autorizacaoGuia || 'N/A',
-                    dataSolicitacao: guia.dataSolicitacao,
-                    dataRegulacao: guia.dataRegulacao || 'N/A',
-                    status: guia.statusRegulacao || 'Status N/A',
-                    prestadorNome: guia.prestador || 'Prestador N/A',
-                    totalNegado: totalNegadoGuia,
-                    itensGuia: itensNegados
-                });
-            }
+        if (search) {
+            values.push(`%${search}%`);
+            query += ` AND (autorizacao_guia ILIKE $${values.length} OR prestador ILIKE $${values.length})`;
         }
+
+        const result = await req.pool.query(query, values);
         
-        resultado.sort((a, b) => b.totalNegado - a.totalNegado);
-        
-        res.json({ success: true, data: resultado, total: resultado.length });
-        
+        const formatado = result.rows.map(row => ({
+            _id: row.id_guia_cliente,
+            numeroGuiaOperadora: row.autorizacao_guia,
+            dataRegulacao: row.data_regulacao,
+            prestadorNome: row.prestador,
+            totalNegado: row.itens_guia.reduce((sum, i) => sum + (parseFloat(i.valorNegado) || 0), 0),
+            itensGuia: row.itens_guia
+        }));
+
+        res.json({ success: true, data: formatado, total: formatado.length });
     } catch (error) {
-        console.error('❌ Erro ao buscar guias negadas:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
 router.get('/estatisticas', async (req, res) => {
     try {
-        console.log('📈 Calculando estatísticas...');
-        const guiasCollection = req.db.collection('guias');
-        
+        console.log('📈 Calculando estatísticas no NeonDB...');
         const { startDate, endDate } = req.query;
         
-        const dateQuery = {};
-        if (startDate && endDate) {
-             dateQuery.dataRegulacao = { $gte: startDate, $lte: endDate };
-        }
-        
-        const baseMatch = { 
-            ...dateQuery, 
-            "itensGuia": { $exists: true, $ne: [] },
-            "statusRegulacao": { $ne: 'CANCELADA' } 
-        };
-        
-        const guiasEncontradas = await guiasCollection.find(baseMatch).toArray();
-        
+        const result = await req.pool.query(`
+            SELECT itens_guia, prestador, tipo_de_guia 
+            FROM public.regulacao_issec 
+            WHERE data_regulacao BETWEEN $1 AND $2 
+            AND status_regulacao != 'CANCELADA'
+            AND jsonb_array_length(itens_guia) > 0`, 
+            [startDate, endDate]
+        );
+
+        const guiasEncontradas = result.rows;
+
         let totalGeralNegado = 0;
         let totalGeralAutorizado = 0; 
         let quantidadeGuias = 0;
         let maiorNegativa = 0;
+        
         const procedimentosMap = new Map();
         const prestadoresMap = new Map();
         const tiposGuiaMap = new Map();
         
-        for (const guia of guiasEncontradas) {
+        for (const row of guiasEncontradas) {
             let totalNegadoGuia = 0;
             let totalAutorizadoGuia = 0; 
             let temNegativa = false;
             
-            for (const item of guia.itensGuia || []) {
+            const itens = row.itens_guia || [];
+            
+            for (const item of itens) {
                 const valorNegado = parseFloat(item.valorNegado || 0);
                 const valorUnitario = parseFloat(item.valorUnitarioProcedimento || 0);
                 const quantAutorizada = parseFloat(item.quantAutorizada || 0);
@@ -409,13 +365,13 @@ router.get('/estatisticas', async (req, res) => {
                 quantidadeGuias++;
                 maiorNegativa = Math.max(maiorNegativa, totalNegadoGuia);
                 
-                const prestadorNome = guia.prestador || 'Prestador Não Informado';
+                const prestadorNome = row.prestador || 'Prestador Não Informado';
                 const atualPrestador = prestadoresMap.get(prestadorNome) || { totalNegado: 0, quantidadeGuias: 0 };
                 atualPrestador.totalNegado += totalNegadoGuia;
                 atualPrestador.quantidadeGuias += 1;
                 prestadoresMap.set(prestadorNome, atualPrestador);
                 
-                const tipoGuia = guia.tipoDeGuia || 'Tipo Não Informado';
+                const tipoGuia = row.tipo_de_guia || 'Tipo Não Informado';
                 const atualTipoGuia = tiposGuiaMap.get(tipoGuia) || { totalNegado: 0, quantidadeGuias: 0 };
                 atualTipoGuia.totalNegado += totalNegadoGuia;
                 atualTipoGuia.quantidadeGuias += 1;
@@ -452,71 +408,59 @@ router.get('/estatisticas', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Erro ao calcular estatísticas:', error);
+        console.error('❌ Erro ao calcular estatísticas no NeonDB:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
 router.get('/sla-desempenho', async (req, res) => {
     try {
-        console.log('🔄 Calculando estatísticas de SLA e Comparativo IA...');
-        const guiasCollection = req.db.collection('guias');
-        
+        console.log('🔄 Calculando estatísticas de SLA e Comparativo no NeonDB...');
         const { startDate, endDate } = req.query;
-        const dateQuery = {};
-        let filtroInicio = null;
-        let filtroFim = null;
+        
+        let query = `
+            SELECT tipo_de_guia, situacao_sla, regulada_automaticamente, reguladores, data_regulacao 
+            FROM public.regulacao_issec 
+            WHERE status_regulacao IS NOT NULL
+        `;
+        const values = [];
 
         if (startDate && endDate) {
-             dateQuery.dataRegulacao = { $gte: startDate, $lte: endDate };
-             filtroInicio = new Date(startDate.includes('T') ? startDate : startDate + 'T00:00:00');
-             filtroFim = new Date(endDate.includes('T') ? endDate : endDate + 'T23:59:59.999');
+            values.push(startDate, endDate);
+            query += ` AND data_regulacao BETWEEN $1 AND $2`;
         }
-        
-        const baseMatch = { ...dateQuery, "statusRegulacao": { $exists: true } };
-        
-        const guiasEncontradas = await guiasCollection.find(baseMatch).project({
-            tipoDeGuia: 1, 
-            situacaoSla: 1, 
-            reguladaAutomaticamente: 1, 
-            reguladores: 1, 
-            dataRegulacao: 1
-        }).toArray();
+
+        const result = await req.pool.query(query, values);
+        const guiasEncontradas = result.rows;
         
         const statsPorTipo = new Map();
         const statsPorRegulador = new Map();
         const statsPorData = new Map();
-
         const comparativoIA_PorData = new Map(); 
-        let totalYmir = 0;
-        let totalGabriel = 0;
-        let totalOutros = 0;
-        let totalGeralIA = 0;
+        
+        let totalYmir = 0, totalGabriel = 0, totalOutros = 0, totalGeralIA = 0;
+        let filtroInicio = startDate ? new Date(startDate) : null;
+        let filtroFim = endDate ? new Date(endDate) : null;
 
         for (const guia of guiasEncontradas) {
-            let dentroSLA = true;
-            if (guia.situacaoSla === 'REGULADA_COM_ATRASO') dentroSLA = false;
-            else if (guia.situacaoSla === 'REGULADA_NO_PRAZO') dentroSLA = true;
-            else if (guia.reguladaAutomaticamente === true) dentroSLA = true;
+            const situacaoSla = guia.situacao_sla;
+            const reguladaAuto = guia.regulada_automaticamente;
+            const reguladores = guia.reguladores || [];
+            const dataRegulacao = guia.data_regulacao;
 
-            const tipoGuia = guia.tipoDeGuia || 'NÃO CLASSIFICADO';
+            let dentroSLA = true;
+            if (situacaoSla === 'REGULADA_COM_ATRASO') dentroSLA = false;
+            else if (situacaoSla === 'REGULADA_NO_PRAZO' || reguladaAuto === true) dentroSLA = true;
+
+            const tipoGuia = guia.tipo_de_guia || 'NÃO CLASSIFICADO';
             const tipoStats = statsPorTipo.get(tipoGuia) || { total: 0, dentroSLA: 0 };
             tipoStats.total++;
             if (dentroSLA) tipoStats.dentroSLA++;
             statsPorTipo.set(tipoGuia, tipoStats);
 
-            let dataFinal = guia.dataRegulacao;
-
-            if (!dataFinal && guia.reguladores && guia.reguladores.length > 0) {
-                const ultimoRegulador = guia.reguladores[guia.reguladores.length - 1];
-                if (ultimoRegulador && ultimoRegulador.dataSituacao) {
-                    dataFinal = ultimoRegulador.dataSituacao;
-                }
-            }
-
             let semana = null;
-            if (dataFinal) {
-                const dataString = new Date(dataFinal).toISOString().split('T')[0];
+            if (dataRegulacao) {
+                const dataString = new Date(dataRegulacao).toISOString().split('T')[0];
                 semana = getInicioSemana(dataString);
                 
                 const dataStats = statsPorData.get(semana) || { total: 0, dentroSLA: 0 };
@@ -525,44 +469,23 @@ router.get('/sla-desempenho', async (req, res) => {
                 statsPorData.set(semana, dataStats);
             }
 
-            const reguladores = guia.reguladores || [];
             let reguladorIdentificado = null; 
 
-            if (reguladores.length === 0 && guia.reguladaAutomaticamente) {
-                let contarIA = true;
-                
-                if (filtroInicio && filtroFim) {
-                    const dataIA = new Date(guia.dataRegulacao);
-                    if (dataIA < filtroInicio || dataIA > filtroFim) contarIA = false;
-                }
+            if (reguladores.length === 0 && reguladaAuto) {
+                const nomeIA = 'YMIR (IA)';
+                const regStats = statsPorRegulador.get(nomeIA) || { total: 0, dentroSLA: 0 };
+                regStats.total++;
+                if (dentroSLA) regStats.dentroSLA++;
+                statsPorRegulador.set(nomeIA, regStats);
 
-                if (contarIA) {
-                    const nomeIA = 'YMIR (IA)';
-                    const regStats = statsPorRegulador.get(nomeIA) || { total: 0, dentroSLA: 0 };
-                    regStats.total++;
-                    if (dentroSLA) regStats.dentroSLA++;
-                    statsPorRegulador.set(nomeIA, regStats);
-
-                    reguladorIdentificado = 'Ymir';
-                    totalYmir++;
-                    totalGeralIA++;
-                }
+                reguladorIdentificado = 'Ymir';
+                totalYmir++;
+                totalGeralIA++;
             } 
             else if (reguladores.length > 0) {
-                for (const reguladorObj of reguladores) {
-                    
-                    if (filtroInicio && filtroFim) {
-                        const dataAcaoStr = reguladorObj.dataSituacao || guia.dataRegulacao;
-                        if (dataAcaoStr) {
-                            const dataAcao = new Date(dataAcaoStr);
-                            if (dataAcao < filtroInicio || dataAcao > filtroFim) {
-                                continue; 
-                            }
-                        }
-                    }
-
-                    let nome = reguladorObj.nomeRegulador || 'Regulador Desconhecido';
-                    nome = nome.toLowerCase().replace(/[^a-zÀ-ÿ\s]/g, '').replace(/\s+/g, ' ').trim();
+                for (const regObj of reguladores) {
+                    let nome = (regObj.nomeRegulador || 'Regulador Desconhecido')
+                               .toLowerCase().replace(/[^a-zÀ-ÿ\s]/g, '').replace(/\s+/g, ' ').trim();
                     
                     const regStats = statsPorRegulador.get(nome) || { total: 0, dentroSLA: 0 };
                     regStats.total++;
@@ -576,34 +499,18 @@ router.get('/sla-desempenho', async (req, res) => {
                         reguladorIdentificado = 'Outros';
                         totalOutros++;
                     }
-                    
                     totalGeralIA++;
-                }
-            } else {
-                let contarOutros = true;
-                if (filtroInicio && filtroFim) {
-                    const dataRef = new Date(guia.dataRegulacao);
-                    if (dataRef < filtroInicio || dataRef > filtroFim) contarOutros = false;
-                }
-                
-                if (contarOutros) {
-                    totalOutros++; 
-                    totalGeralIA++;
-                    reguladorIdentificado = 'Outros';
                 }
             }
-            
+
             if (semana && reguladorIdentificado) {
                 const dadosSemana = comparativoIA_PorData.get(semana) || { ymir: 0, gabriel: 0, outros: 0 };
-                
                 if (reguladorIdentificado === 'Ymir') dadosSemana.ymir++;
                 else if (reguladorIdentificado === 'Gabriel') dadosSemana.gabriel++;
                 else dadosSemana.outros++;
-                
                 comparativoIA_PorData.set(semana, dadosSemana);
             }
         }
-
 
         let totalGuiasSLA = 0;
         let totalDentroSLA = 0;
@@ -611,6 +518,7 @@ router.get('/sla-desempenho', async (req, res) => {
             totalGuiasSLA += stats.total;
             totalDentroSLA += stats.dentroSLA;
         }
+        
         const slaGeral = (totalGuiasSLA > 0) ? ((totalDentroSLA / totalGuiasSLA) * 100).toFixed(2) : "0.00";
 
         const slaPorTipo = Array.from(statsPorTipo.entries()).map(([tipo, data]) => ({
@@ -628,26 +536,12 @@ router.get('/sla-desempenho', async (req, res) => {
 
         const desempenhoReguladores = Array.from(statsPorRegulador.entries())
             .map(([nome, data]) => ({
-                nome: nome.includes('gabriel costa campos') ? 'Gabriel Costa Campos' : (nome === 'YMIR (IA)' ? nome : nome),
+                nome: nome.includes('gabriel costa campos') ? 'Robô (Gabriel)' : (nome === 'ymir ia' ? 'YMIR (IA)' : nome),
                 total: data.total, 
                 dentroSLA: data.dentroSLA,
                 percentualSLA: data.total > 0 ? ((data.dentroSLA / data.total) * 100).toFixed(1) : "0.0" 
             }))
             .sort((a, b) => b.total - a.total);
-
-        const comparativoTimeline = Array.from(comparativoIA_PorData.entries())
-            .map(([data, counts]) => ({
-                data,
-                ymir: counts.ymir,
-                gabriel: counts.gabriel,
-                outros: counts.outros
-            }))
-            .sort((a, b) => a.data.localeCompare(b.data)); 
-
-        const percentualYmir = totalGeralIA > 0 ? ((totalYmir / totalGeralIA) * 100).toFixed(1) : "0.0";
-        const percentualGabriel = totalGeralIA > 0 ? ((totalGabriel / totalGeralIA) * 100).toFixed(1) : "0.0";
-        
-        const percentualOutros = totalGeralIA > 0 ? ((totalOutros / totalGeralIA) * 100).toFixed(1) : "0.0";
 
         res.json({
             success: true,
@@ -658,18 +552,18 @@ router.get('/sla-desempenho', async (req, res) => {
                 tendenciaSLA, 
                 desempenhoReguladores,
                 comparativoIA: {
-                    timeline: comparativoTimeline,
+                    timeline: Array.from(comparativoIA_PorData.entries()).map(([data, c]) => ({ data, ymir: c.ymir, gabriel: c.gabriel, outros: c.outros })).sort((a,b) => a.data.localeCompare(b.data)),
                     share: {
-                        ymir: percentualYmir,
-                        gabriel: percentualGabriel,
-                        outros: percentualOutros
+                        ymir: totalGeralIA > 0 ? ((totalYmir / totalGeralIA) * 100).toFixed(1) : "0.0",
+                        gabriel: totalGeralIA > 0 ? ((totalGabriel / totalGeralIA) * 100).toFixed(1) : "0.0",
+                        outros: totalGeralIA > 0 ? ((totalOutros / totalGeralIA) * 100).toFixed(1) : "0.0"
                     }
                 }
             }
         });
         
     } catch (error) {
-        console.error('❌ Erro ao calcular estatísticas de SLA:', error);
+        console.error('❌ Erro ao calcular estatísticas de SLA no NeonDB:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

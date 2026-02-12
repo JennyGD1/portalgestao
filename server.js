@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { MongoClient } = require('mongodb');
+const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const cookieParser = require('cookie-parser');
@@ -8,19 +8,23 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+const pool = new Pool({
+    connectionString: process.env.NEON_DATABASE_URL_ISSEC,
+    ssl: { rejectUnauthorized: false }
+});
 app.use(cors({
     origin: true, // Ou coloque o endereço exato: 'https://seu-app.vercel.app'
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
+app.set('db', pool);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('trust proxy', 1);
 
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    req.pool = pool;
     next();
 });
 
@@ -87,18 +91,6 @@ async function connectToMongoDB() {
     console.log('✅ MongoDB conectado');
     return db;
 }
-
-app.use(async (req, res, next) => {
-    try {
-        if (!db) await connectToMongoDB();
-        req.db = db;
-        next();
-    } catch (error) {
-        console.error('❌ Erro MongoDB:', error);
-        res.status(500).json({ error: 'Erro no banco de dados' });
-    }
-});
-
 app.post('/api/auth/login', (req, res) => {
     const { usuario, senha } = req.body;
     const USUARIO_CORRETO = process.env.ADMIN_USER || 'admin';

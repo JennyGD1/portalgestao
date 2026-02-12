@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
-const { Pool } = require('pg');
+const { MongoClient } = require('mongodb'); // ✅ IMPORTANTE: Adicionar isso!
+const { Pool } = require('pg'); // ✅ Para NeonDB
 const cors = require('cors');
 const path = require('path');
 const cookieParser = require('cookie-parser');
@@ -8,26 +9,74 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const pool = new Pool({
-    connectionString: process.env.NEON_DATABASE_URL_ISSEC,
+
+// =============================================
+// CONFIGURAÇÃO NEONDB (PostgreSQL)
+// =============================================
+const neonPool = new Pool({
+    connectionString: process.env.NEON_AUDITORIA_DB,
     ssl: { rejectUnauthorized: false }
 });
+
+// =============================================
+// CONFIGURAÇÃO MONGODB
+// =============================================
+const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = process.env.DB_NAME;
+let mongoDb;
+
+async function connectToMongoDB() {
+    if (mongoDb) return mongoDb;
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    mongoDb = client.db(DB_NAME);
+    console.log('✅ MongoDB conectado');
+    return mongoDb;
+}
+
+// =============================================
+// MIDDLEWARES GLOBAIS
+// =============================================
 app.use(cors({
-    origin: true, // Ou coloque o endereço exato: 'https://seu-app.vercel.app'
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
-app.set('db', pool);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('trust proxy', 1);
 
+// Logger
 app.use((req, res, next) => {
-    req.pool = pool;
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
 
+// =============================================
+// MIDDLEWARE DE BANCO DE DADOS - CRÍTICO!
+// =============================================
+app.use(async (req, res, next) => {
+    try {
+        // Disponibiliza NeonDB (PostgreSQL) para todas as rotas
+        req.pool = neonPool;
+        
+        // Disponibiliza MongoDB para todas as rotas
+        req.db = await connectToMongoDB();
+        
+        next();
+    } catch (error) {
+        console.error('❌ Erro ao conectar bancos de dados:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Erro de conexão com os bancos de dados' 
+        });
+    }
+});
+
+// =============================================
+// AUTENTICAÇÃO
+// =============================================
 const SECRET_KEY = process.env.SESSION_SECRET || 'chave_secreta_fixa_para_desenvolvimento_123456';
 const MAX_AGE = 24 * 60 * 60 * 1000;
 
@@ -79,18 +128,9 @@ const verificarAutenticacao = (req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(verificarAutenticacao);
 
-const MONGODB_URI = process.env.MONGODB_URI;
-const DB_NAME = process.env.DB_NAME;
-let db;
-
-async function connectToMongoDB() {
-    if (db) return db;
-    const client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    db = client.db(DB_NAME);
-    console.log('✅ MongoDB conectado');
-    return db;
-}
+// =============================================
+// ROTAS DE AUTENTICAÇÃO
+// =============================================
 app.post('/api/auth/login', (req, res) => {
     const { usuario, senha } = req.body;
     const USUARIO_CORRETO = process.env.ADMIN_USER || 'admin';
@@ -124,6 +164,9 @@ app.get('/api/auth/status', (req, res) => {
     res.json({ autenticado: !!req.usuario, usuario: req.usuario });
 });
 
+// =============================================
+// ROTAS DE PÁGINAS
+// =============================================
 app.get('/login', (req, res) => {
     if (req.usuario) return res.redirect('/');
     res.sendFile(path.join(__dirname, 'public', 'html', 'login.html'));
@@ -141,7 +184,9 @@ app.get('/faturamento', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'html', 'faturamento.html'));
 });
 
-// IMPORTE AS ROTAS - Use caminho absoluto
+// =============================================
+// ROTAS DA API
+// =============================================
 const regulacaoRoutes = require('./routes/regulacao.routes');
 const auditoriaRoutes = require('./routes/auditoria.routes');
 const faturamentoRoutes = require('./routes/faturamento.routes');
@@ -152,17 +197,37 @@ app.use('/api/faturamento', faturamentoRoutes);
 
 // Rota de teste
 app.get('/api/teste', (req, res) => {
-    res.json({ message: 'API funcionando', timestamp: new Date().toISOString() });
+    res.json({ 
+        message: 'API funcionando', 
+        timestamp: new Date().toISOString(),
+        databases: {
+            mongodb: !!req.db,
+            neondb: !!req.pool
+        }
+    });
 });
 
+// =============================================
+// FALLBACK
+// =============================================
 app.get('*', (req, res) => {
     if (req.usuario) return res.redirect('/');
     res.redirect('/login');
 });
 
+// =============================================
+// INICIALIZAÇÃO
+// =============================================
 if (process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, () => {
-        console.log(`Servidor rodando na porta ${PORT}`);
+    app.listen(PORT, async () => {
+        console.log(`🚀 Servidor rodando na porta ${PORT}`);
+        // Tenta conectar MongoDB na inicialização
+        try {
+            await connectToMongoDB();
+            console.log('✅ MongoDB pronto para uso');
+        } catch (error) {
+            console.error('❌ Falha ao conectar MongoDB:', error);
+        }
     });
 }
 

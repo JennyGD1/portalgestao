@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
-const { MongoClient } = require('mongodb'); // ✅ IMPORTANTE: Adicionar isso!
-const { Pool } = require('pg'); // ✅ Para NeonDB
+const { MongoClient } = require('mongodb'); 
+const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const cookieParser = require('cookie-parser');
@@ -58,10 +58,8 @@ app.use((req, res, next) => {
 // =============================================
 app.use(async (req, res, next) => {
     try {
-        // Disponibiliza NeonDB (PostgreSQL) para todas as rotas
         req.pool = neonPool;
         
-        // Disponibiliza MongoDB para todas as rotas
         req.db = await connectToMongoDB();
         
         next();
@@ -221,7 +219,6 @@ app.get('*', (req, res) => {
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, async () => {
         console.log(`🚀 Servidor rodando na porta ${PORT}`);
-        // Tenta conectar MongoDB na inicialização
         try {
             await connectToMongoDB();
             console.log('✅ MongoDB pronto para uso');
